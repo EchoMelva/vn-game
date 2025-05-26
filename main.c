@@ -97,6 +97,13 @@ enemy allEnemy[] = {
         1,
         "normal",
         {15, 15, 25, 100, 20, (status){false, false, false, false}}
+    },
+    {
+        "cyclops", 90,
+        {{"club attack", 100, 10, 1, "NULL"}, {"body slam", 50, 30, 1, "NULL"}, {"enrage", 0, 100, 1, "atkBuff"}, {"laser eye", 0, 100, 0, "brn"}},
+        1,
+        "dark",
+        {150, 15, 5, 100, 10, (status){false, false, false, false}}
     }
 };
 
