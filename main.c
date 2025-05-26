@@ -15,6 +15,7 @@
 // Structs and Enum
 #define MAX_INVENTORY_SIZE 10
 #define NUM_TRIGGERS 4
+#define MAX_LEVEL 100
 
 typedef enum {
     isAlive = 0,
@@ -75,6 +76,7 @@ typedef struct {
 
 typedef struct {
     char* name;
+    int xpSeed;
     move moveset[4];
     int lvl;
     char* type;
@@ -83,15 +85,15 @@ typedef struct {
 
 enemy allEnemy[] = {
     {
-        "slime",
+        "slime", 50,
         {{"blob attack", 20, 100, 1, "NULL"}, {"electrify", 10, 70, 1, "prs"}, {"acid throw", 10, 70, 1, "psn"}, {"slimy touch", 10, 70, 0, "brn"}},
         1,
         "normal",
         {25, 15, 20, 100, 20, (status){false, false, false, false}}
     },
     {
-        "goblin",
-        {{"bite", 20, 100, 1, "NULL"}, {"spear jab", 30, 50, 1, "NULL"}, {"club attack", 50, 30, 1, "NULL"}, {"posion arrow", 20, 80, 0, "psn"}},
+        "goblin", 70,
+        {{"bite", 20, 100, 1, "NULL"}, {"spear jab", 30, 50, 1, "NULL"}, {"enrage", 0, 100, 1, "atkBuff"}, {"posion arrow", 20, 80, 0, "psn"}},
         1,
         "normal",
         {15, 15, 25, 100, 20, (status){false, false, false, false}}
@@ -209,11 +211,11 @@ void init_combat(player* p) {
             damage = e->moveset[moveIndex].dmg * (e->stat.atk)/(p->stat.def) + (int)ceil(((rand() % 31) / 100.0) * e->moveset[moveIndex].dmg);
             if (damage < 0) damage = 0;
             if(isHit) {
-                p->stat.hp -= damage;
-                type("You took %d damage!\n", damage);
-                if (!strcmp(e->moveset[moveIndex].debuff, "brn")) p->stat.status.isBurning = true; brnCounter = 0;
-                if (!strcmp(e->moveset[moveIndex].debuff, "psn")) p->stat.status.isPoisoned = true; psnCounter = 0;
-                if (!strcmp(e->moveset[moveIndex].debuff, "prs")) p->stat.status.isParalysed = true; prsCounter = 0;
+                if (!strcmp(e->moveset[moveIndex].debuff, "NULL")) { p->stat.hp -= damage; type("You took %d damage!\n", damage); }
+                else if (!strcmp(e->moveset[moveIndex].debuff, "brn")) { p->stat.status.isBurning = true; brnCounter = 0; p->stat.hp -= damage; type("You took %d damage!\n", damage); }
+                else if (!strcmp(e->moveset[moveIndex].debuff, "psn")) { p->stat.status.isPoisoned = true; psnCounter = 0; p->stat.hp -= damage; type("You took %d damage!\n", damage); }
+                else if (!strcmp(e->moveset[moveIndex].debuff, "prs")) { p->stat.status.isParalysed = true; prsCounter = 0; p->stat.hp -= damage; type("You took %d damage!\n", damage); }
+                else if (!strcmp(e->moveset[moveIndex].debuff, "atkBuff")) { e->stat.atk += 10; type("%s's attack went up!\n", e->name); }
             }
             else {
                 type("%s missed!\n", e->name);
@@ -221,14 +223,14 @@ void init_combat(player* p) {
         }
         if(p->stat.status.isBurning && brnCounter < 3) {
             type("You are burning!\n");
-            damage = (int)ceil(p->baseStats.hp / 8);
+            damage = (int)ceil(p->baseStats.hp / 16);
             p->stat.hp-= damage;
             type("You took %d damage!\n", damage);
             brnCounter += 1;
         }
         if(p->stat.status.isPoisoned && psnCounter < 3) {
             type("You are poisoned!\n");
-            damage = (int)ceil(p->baseStats.hp / 8);
+            damage = (int)ceil(p->baseStats.hp / 16);
             p->stat.hp-= damage;
             type("You took %d damage!\n", damage);
             psnCounter += 1;
@@ -247,7 +249,7 @@ void init_combat(player* p) {
         p->gameTriggers[isAlive] = false;
     } else if (e->stat.hp <= 0) {
         type("You killed the %s!\n", e->name);
-        xp = ((e->lvl - p->lvl) >= 0)? 100 + (e->lvl - p->lvl) * 100 : 100 + (p->lvl - e->lvl) * 100;
+        xp = (e->xpSeed+e->xpSeed * sqrt(e->lvl / p->lvl)) * 2 * (1-(p->lvl / MAX_LEVEL));
         p->xp += xp;
         type("You gained %d XP!\n", xp);
         p->stat.status.isPoisoned = false;
@@ -269,7 +271,7 @@ enemy* createEnemy(player* p) {
     newEnemy->lvl = p->lvl + (rand() % 5) - 2;
     if (newEnemy->lvl < 1) newEnemy->lvl = 1;
     newEnemy->stat.hp += newEnemy->lvl * 15;
-    newEnemy->stat.def += newEnemy->lvl * 5;
+    newEnemy->stat.def += newEnemy->lvl * 2;
     newEnemy->stat.atk += newEnemy->lvl * 3;
     newEnemy->stat.agility += newEnemy->lvl * 3;
     newEnemy->stat.status = (status){false, false, false, false};
@@ -295,8 +297,8 @@ player* createPlayer(int inventoryCapacity) {
     }
     p->lvl = 1;
     p->xp = 0;
-    p->baseStats = (stats){100, 20, 30, 100, 20, (status){false, false, false, false}};
-    p->stat = (stats){100, 20, 30, 100, 20, (status){false, false, false, false}};
+    p->baseStats = (stats){200, 20, 30, 100, 20, (status){false, false, false, false}};
+    p->stat = (stats){200, 20, 30, 100, 20, (status){false, false, false, false}};
     return p;
 }
 
