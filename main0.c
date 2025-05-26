@@ -1,0 +1,589 @@
+#include <stdio.h>
+#include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+#include <math.h>
+#include <stdarg.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
+
+// Structs and Enum
+#define MAX_INVENTORY_SIZE 10
+#define NUM_TRIGGERS 4
+
+typedef enum {
+    isAlive = 0,
+    hasAxe = 1,
+    hasKey1 = 2,
+    hasKey2 = 3
+} triggerNums;
+
+typedef struct {
+    int capacity;
+    int currentSize;
+    char* items[MAX_INVENTORY_SIZE];
+} inventory;
+
+typedef struct {
+    bool isPoisoned;
+    bool isParalysed;
+    bool isFrozen;
+    bool isBurning;
+}status;
+
+typedef struct {
+    int hp;
+    int def;
+    int atk;
+    int acc;
+    int agility;
+    status status;
+} stats;
+
+typedef struct scene scene;
+typedef struct {
+    inventory* inv;
+    bool gameTriggers[NUM_TRIGGERS];
+    int lvl;
+    int xp;
+    stats stat;
+    stats baseStats;
+} player;
+
+typedef struct scene {
+    char* description;
+    bool* choiceConditions;
+    int* choiceIds;
+    scene** nextScenePerChoice;
+    int numChoices;
+    int sceneNo;
+    char* choices[];
+} scene;
+
+typedef struct {
+    char* name;
+    int dmg;
+    int acc;
+    int lvlReq;
+    char* debuff;
+} move;
+
+typedef struct {
+    char* name;
+    move moveset[4];
+    int lvl;
+    char* type;
+    stats stat;
+} enemy;
+
+enemy allEnemy[] = {
+    {
+        "slime",
+        {{"blob attack", 20, 100, 1, "NULL"}, {"electrify", 10, 70, 1, "prs"}, {"acid throw", 10, 70, 1, "psn"}, {"slimy touch", 10, 70, 0, "brn"}},
+        1,
+        "normal",
+        {25, 15, 20, 100, 20, (status){false, false, false, false}}
+    },
+    {
+        "goblin",
+        {{"bite", 20, 100, 1, "NULL"}, {"spear jab", 30, 50, 1, "NULL"}, {"club attack", 50, 30, 1, "NULL"}, {"posion arrow", 20, 80, 0, "psn"}},
+        1,
+        "normal",
+        {15, 15, 25, 100, 20, (status){false, false, false, false}}
+    }
+};
+
+// Function declarations
+player* createPlayer(int inventoryCapacity);
+inventory* createInventory(int capacity);
+void addItemToInventory(char* item, inventory* inventory);
+void removeItemFromInventory(char* item, inventory* inventory);
+scene* createScene(int numChoices, char* description, char** choices, bool* choiceConditions, int* choiceIds, scene** nextScenePerChoice, int sceneNo);
+scene* processChoice(scene* currentScene, player* p, int choiceIndex);
+void displayScene(scene* currentScene, player* p);
+void updateSceneConditions(scene* currentScene, player* p);
+void freeScene(scene* s);
+void freePlayer(player* p);
+void freeEnemy(enemy* e);
+enemy* createEnemy(player* p);
+void init_combat(player* p);
+void type(const char* format, ...);
+void lvlUp(player* p);
+
+// Function implementations
+
+void lvlUp(player* p) {
+    type("You leveled up!\nYou are now level %d!\n", p->lvl + 1);
+    p->lvl += 1;
+    p->xp -= 500;
+    p->baseStats.hp += 50;
+    p->baseStats.agility += 3;
+    p->baseStats.def += 5;
+    p->baseStats.atk += 5;
+    p->stat.hp = p->baseStats.hp;
+    p->stat.agility = p->baseStats.agility;
+    p->stat.def = p->baseStats.def;
+    p->stat.atk = p->baseStats.atk;
+    type("HP: %d\n", p->baseStats.hp);
+    type("Atk: %d\n", p->baseStats.atk);
+    type("Def: %d\n", p->baseStats.def);
+    type("Agility: %d\n", p->baseStats.agility);
+}
+
+void type(const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    char buffer[1024];
+    vsnprintf(buffer, sizeof(buffer), format, args);
+    va_end(args);
+
+    for (int i = 0; buffer[i] != '\0'; i++) {
+        putchar(buffer[i]);
+        fflush(stdout);
+#ifdef _WIN32
+        Sleep(30);
+#else
+        usleep(30000);
+#endif
+    }
+}
+
+void init_combat(player* p) {
+    enemy* e = createEnemy(p);
+    if (!e) return;
+    type("A level %d %s appears in front of you.\n", e->lvl, e->name);
+    int choice;
+    int damage;
+    int xp;
+    int moveIndex;
+    int brnCounter = 0;
+    int psnCounter = 0;
+    int prsCounter = 0;
+    bool isHit;
+    while (p->stat.hp > 0 && e->stat.hp > 0) {
+        type("Your HP: %d\n", p->stat.hp);
+        type("%s's HP: %d\n", e->name, e->stat.hp);
+        type("What do you do?\n");
+        type("1. Attack\n2. Run Away\n");
+        if (scanf("%d", &choice) != 1) {
+            type("Invalid input. Please enter a number.\n");
+            while (getchar() != '\n');
+            continue;
+        }
+        if (choice == 2) {
+            if (p->stat.agility > e->stat.agility) {
+                type("Ran away successfully!\n");
+                break;
+            } else if (p->stat.agility < e->stat.agility) {
+                type("%s is too fast. Failed to run away.\n", e->name);
+            } else {
+                if (rand() % 2 == 0) {
+                    type("Ran away successfully!\n");
+                    break;
+                } else {
+                    type("%s is too fast. Failed to run away.\n", e->name);
+                }
+            }
+        } else if (choice == 1) {
+            if (p->stat.status.isParalysed && rand() % 2 == 0) type("You are paralyzed you can't move.\n");
+            else {
+                type("You attacked the %s!\n", e->name);
+                damage = p->stat.atk - e->stat.def + (int)ceil(((rand() % 31) / 100.0) * p->stat.atk);
+                if (damage < 0) damage = 0;
+                e->stat.hp -= damage;
+                type("You did %d damage!\n", damage);
+            }
+        } else {
+            type("Invalid choice.\n");
+            continue;
+        }
+        if (e->stat.hp > 0) {
+            moveIndex = rand()%4;
+            isHit = (rand()%100 < e->moveset[moveIndex].acc)? true : false;
+            type("%s used %s\n", e->name, e->moveset[moveIndex].name);
+            damage = e->moveset[moveIndex].dmg * (e->stat.atk)/(p->stat.def) + (int)ceil(((rand() % 31) / 100.0) * e->moveset[moveIndex].dmg);
+            if (damage < 0) damage = 0;
+            if(isHit) {
+                p->stat.hp -= damage;
+                type("You took %d damage!\n", damage);
+                if (!strcmp(e->moveset[moveIndex].debuff, "brn")) p->stat.status.isBurning = true; brnCounter = 0;
+                if (!strcmp(e->moveset[moveIndex].debuff, "psn")) p->stat.status.isPoisoned = true; psnCounter = 0;
+                if (!strcmp(e->moveset[moveIndex].debuff, "prs")) p->stat.status.isParalysed = true; prsCounter = 0;
+            }
+            else {
+                type("%s missed!\n", e->name);
+            }
+        }
+        if(p->stat.status.isBurning && brnCounter < 3) {
+            type("You are burning!\n");
+            damage = (int)ceil(p->baseStats.hp / 8);
+            p->stat.hp-= damage;
+            type("You took %d damage!\n", damage);
+            brnCounter += 1;
+        }
+        if(p->stat.status.isPoisoned && psnCounter < 3) {
+            type("You are poisoned!\n");
+            damage = (int)ceil(p->baseStats.hp / 8);
+            p->stat.hp-= damage;
+            type("You took %d damage!\n", damage);
+            psnCounter += 1;
+        }
+        if(p->stat.status.isParalysed && prsCounter < 3) {
+            type("You are paralysed!\n");
+            psnCounter += 1;
+        }
+
+        if(brnCounter == 3) p->stat.status.isBurning = false; brnCounter = 0;
+        if(psnCounter == 3) p->stat.status.isPoisoned = false; psnCounter = 0;
+        if(prsCounter == 3) p->stat.status.isParalysed = false; prsCounter = 0;
+    }
+    if (p->stat.hp <= 0) {
+        type("You died!\n");
+        p->gameTriggers[isAlive] = false;
+    } else if (e->stat.hp <= 0) {
+        type("You killed the %s!\n", e->name);
+        xp = ((e->lvl - p->lvl) >= 0)? 100 + (e->lvl - p->lvl) * 100 : 100 + (p->lvl - e->lvl) * 100;
+        p->xp += xp;
+        type("You gained %d XP!\n", xp);
+        p->stat.status.isPoisoned = false;
+        p->stat.status.isParalysed = false;
+        p->stat.status.isBurning = false;
+        p->stat.status.isFrozen = false;
+        if(p->xp >= 500) lvlUp(p);
+    }
+    freeEnemy(e);
+}
+
+enemy* createEnemy(player* p) {
+    int enemyIndex = rand() % 2;
+    enemy* newEnemy = malloc(sizeof(enemy));
+    if (!newEnemy) return NULL;
+    *newEnemy = allEnemy[enemyIndex];
+    newEnemy->name = strdup(newEnemy->name);
+    newEnemy->type = strdup(newEnemy->type);
+    newEnemy->lvl = p->lvl + (rand() % 5) - 2;
+    if (newEnemy->lvl < 1) newEnemy->lvl = 1;
+    newEnemy->stat.hp += newEnemy->lvl * 15;
+    newEnemy->stat.def += newEnemy->lvl * 5;
+    newEnemy->stat.atk += newEnemy->lvl * 3;
+    newEnemy->stat.agility += newEnemy->lvl * 3;
+    newEnemy->stat.status = (status){false, false, false, false};
+    for (int i = 0; i < 4; i++) {
+        if (newEnemy->moveset[i].name) {
+            newEnemy->moveset[i].name = strdup(newEnemy->moveset[i].name);
+            newEnemy->moveset[i].debuff = strdup(newEnemy->moveset[i].debuff);
+        }
+    }
+    return newEnemy;
+}
+
+player* createPlayer(int inventoryCapacity) {
+    player* p = malloc(sizeof(player));
+    if (!p) return NULL;
+    p->inv = createInventory(inventoryCapacity);
+    if (!p->inv) {
+        free(p);
+        return NULL;
+    }
+    for (int i = 0; i < NUM_TRIGGERS; i++) {
+        p->gameTriggers[i] = (i == isAlive) ? true : false;
+    }
+    p->lvl = 1;
+    p->xp = 0;
+    p->baseStats = (stats){100, 20, 30, 100, 20, (status){false, false, false, false}};
+    p->stat = (stats){100, 20, 30, 100, 20, (status){false, false, false, false}};
+    return p;
+}
+
+inventory* createInventory(int capacity) {
+    if (capacity > MAX_INVENTORY_SIZE) {
+        type("Capacity exceeds maximum inventory size (%d)\n", MAX_INVENTORY_SIZE);
+        return NULL;
+    }
+    inventory* inv = malloc(sizeof(inventory));
+    if (!inv) return NULL;
+    inv->capacity = capacity;
+    inv->currentSize = 0;
+    for (int i = 0; i < MAX_INVENTORY_SIZE; i++) {
+        inv->items[i] = NULL;
+    }
+    return inv;
+}
+
+void addItemToInventory(char* item, inventory* inventory) {
+    if (!inventory || !item) return;
+    if (inventory->currentSize >= inventory->capacity) {
+        type("Inventory is full\n");
+        return;
+    }
+    inventory->items[inventory->currentSize] = strdup(item);
+    if (inventory->items[inventory->currentSize]) {
+        inventory->currentSize++;
+    } else {
+        type("Failed to add item: memory allocation error\n");
+    }
+}
+
+void removeItemFromInventory(char* item, inventory* inventory) {
+    if (!inventory || !item) return;
+    if (inventory->currentSize == 0) {
+        type("Inventory is Empty\n");
+        return;
+    }
+    for (int i = 0; i < inventory->currentSize; i++) {
+        if (inventory->items[i] && strcmp(inventory->items[i], item) == 0) {
+            free(inventory->items[i]);
+            for (int j = i; j < inventory->currentSize - 1; j++) {
+                inventory->items[j] = inventory->items[j + 1];
+            }
+            inventory->items[inventory->currentSize - 1] = NULL;
+            inventory->currentSize--;
+            return;
+        }
+    }
+    type("Item not in inventory\n");
+}
+
+scene* createScene(int numChoices, char* description, char** choices, bool* choiceConditions, int* choiceIds, scene** nextScenePerChoice, int sceneNo) {
+    scene* newScene = malloc(sizeof(scene) + sizeof(char*) * numChoices);
+    if (!newScene) return NULL;
+    newScene->choiceConditions = malloc(sizeof(bool) * numChoices);
+    if (!newScene->choiceConditions) {
+        free(newScene);
+        return NULL;
+    }
+    newScene->choiceIds = malloc(sizeof(int) * numChoices);
+    if (!newScene->choiceIds) {
+        free(newScene->choiceConditions);
+        free(newScene);
+        return NULL;
+    }
+    newScene->nextScenePerChoice = malloc(sizeof(scene*) * numChoices);
+    if (!newScene->nextScenePerChoice) {
+        free(newScene->choiceIds);
+        free(newScene->choiceConditions);
+        free(newScene);
+        return NULL;
+    }
+    newScene->description = description ? strdup(description) : NULL;
+    newScene->numChoices = numChoices;
+    newScene->sceneNo = sceneNo;
+    for (int i = 0; i < numChoices; i++) {
+        newScene->choices[i] = choices && choices[i] ? strdup(choices[i]) : NULL;
+        newScene->choiceConditions[i] = choiceConditions ? choiceConditions[i] : false;
+        newScene->choiceIds[i] = choiceIds ? choiceIds[i] : (sceneNo * 100 + (i + 1));
+        newScene->nextScenePerChoice[i] = nextScenePerChoice ? nextScenePerChoice[i] : NULL;
+    }
+    return newScene;
+}
+
+scene* processChoice(scene* currentScene, player* p, int choiceIndex) {
+    if (!currentScene || !p || choiceIndex < 0 || choiceIndex >= currentScene->numChoices) {
+        type("Invalid choice index!\n");
+        return currentScene;
+    }
+    if (!currentScene->choiceConditions[choiceIndex]) {
+        type("Choice not available!\n");
+        return currentScene;
+    }
+    int choiceId = currentScene->choiceIds[choiceIndex];
+    int choiceNumber = choiceId % 100;
+    switch (choiceId) {
+        case 101: // Scene 1: Pick up axe
+            if (!p->gameTriggers[hasAxe]) {
+                addItemToInventory("Axe", p->inv);
+                p->gameTriggers[hasAxe] = true;
+                type("Picked up Axe!\n");
+            }
+            return currentScene->nextScenePerChoice[choiceNumber - 1];
+        case 102: // Scene 1: Pick up key1
+            if (!p->gameTriggers[hasKey1]) {
+                addItemToInventory("Key1", p->inv);
+                p->gameTriggers[hasKey1] = true;
+                type("Picked up Key1!\n");
+                return currentScene->nextScenePerChoice[choiceNumber - 1];
+            } else {
+                type("You have already picked up a key.\n");
+                return currentScene->nextScenePerChoice[choiceNumber - 1];
+            }
+        case 103: // Scene 1: Unlock gate
+            if (p->gameTriggers[hasKey1]) {
+                type("Gate unlocked with Key1!\n");
+                return currentScene->nextScenePerChoice[choiceNumber - 1];
+            } else {
+                type("Need Key1 to unlock gate.\n");
+                return currentScene;
+            }
+        case 201: // Scene 2: Chop door
+            if (p->gameTriggers[hasAxe]) {
+                type("Door chopped with Axe!\n");
+                return currentScene->nextScenePerChoice[choiceNumber - 1];
+            } else {
+                type("Need Axe to chop door.\n");
+                return currentScene;
+            }
+        case 202: // Scene 2: Go back
+            type("You go back to the dark room.\n");
+            return currentScene->nextScenePerChoice[choiceNumber - 1];
+        case 203: // Scene 2: Fight slime
+            init_combat(p);
+            if (!p->gameTriggers[isAlive]) {
+                type("Game Over.\n");
+                return NULL;
+            }
+            return currentScene;
+        default:
+            type("Invalid choice ID.\n");
+            return currentScene;
+    }
+}
+
+void displayScene(scene* currentScene, player* p) {
+    if (!currentScene || !p) return;
+    type("\n%s\n", currentScene->description);
+    type("What do you do?\n");
+    for (int i = 0; i < currentScene->numChoices; i++) {
+        if (currentScene->choiceConditions[i]) {
+            type("%d. %s\n", i + 1, currentScene->choices[i]);
+        }
+    }
+}
+
+void updateSceneConditions(scene* currentScene, player* p) {
+    if (!currentScene || !p) return;
+    for (int i = 0; i < currentScene->numChoices; i++) {
+        switch (currentScene->choiceIds[i]) {
+            case 101: // Pick up axe
+                currentScene->choiceConditions[i] = !p->gameTriggers[hasAxe];
+                break;
+            case 102: // Pick up key1
+                currentScene->choiceConditions[i] = !p->gameTriggers[hasKey1];
+                break;
+            case 103: // Unlock gate
+                currentScene->choiceConditions[i] = true;
+                break;
+            case 201: // Chop door
+                currentScene->choiceConditions[i] = true;
+                break;
+            case 202: // Go back
+                currentScene->choiceConditions[i] = true;
+                break;
+            case 203: // Fight slime
+                currentScene->choiceConditions[i] = true;
+                break;
+            default:
+                currentScene->choiceConditions[i] = true;
+                break;
+        }
+    }
+}
+
+void freeScene(scene* s) {
+    if (s) {
+        for (int i = 0; i < s->numChoices; i++) {
+            free(s->choices[i]);
+        }
+        free(s->description);
+        free(s->choiceConditions);
+        free(s->choiceIds);
+        free(s->nextScenePerChoice);
+        free(s);
+    }
+}
+
+void freePlayer(player* p) {
+    if (p) {
+        for (int i = 0; i < p->inv->currentSize; i++) {
+            free(p->inv->items[i]);
+        }
+        free(p->inv);
+        free(p);
+    }
+}
+
+void freeEnemy(enemy* e) {
+    if (e) {
+        free(e->name);
+        free(e->type);
+        for (int i = 0; i < 4; i++) {
+            free(e->moveset[i].name);
+            free(e->moveset[i].debuff);
+        }
+        free(e);
+    }
+}
+
+// Main function
+int main() {
+    srand(time(NULL));
+    player* p = createPlayer(3);
+    if (!p) return 1;
+
+    const int numScenes = 2;
+    scene* scenes[numScenes];
+    scene** nextScenes[numScenes];
+
+    char* choices1[] = {"Pick up axe", "Pick up key1", "Unlock gate", NULL};
+    bool conditions1[] = {true, true, true};
+    scene* nextScenes1[3] = {NULL, NULL, NULL};
+
+    char* choices2[] = {"Chop door", "Go back to dark room", "Fight the enemy", NULL};
+    bool conditions2[] = {true, true, true};
+    scene* nextScenes2[3] = {NULL, NULL, NULL};
+
+    scenes[0] = createScene(3, "A dark room with an axe and a gate.", choices1, conditions1, NULL, nextScenes1, 1);
+    scenes[1] = createScene(3, "A room with a wooden door and an enemy lurking.", choices2, conditions2, NULL, nextScenes2, 2);
+    for (int i = 0; i < numScenes; i++) {
+        if (!scenes[i]) {
+            for (int j = 0; j < i; j++) freeScene(scenes[j]);
+            freePlayer(p);
+            return 1;
+        }
+    }
+
+    nextScenes[0] = nextScenes1;
+    nextScenes[1] = nextScenes2;
+    nextScenes1[0] = scenes[0];
+    nextScenes1[1] = scenes[0];
+    nextScenes1[2] = scenes[1];
+    nextScenes2[0] = NULL;
+    nextScenes2[1] = scenes[0];
+    nextScenes2[2] = scenes[1];
+
+    for (int i = 0; i < numScenes; i++) {
+        for (int j = 0; j < scenes[i]->numChoices; j++) {
+            scenes[i]->nextScenePerChoice[j] = nextScenes[i][j];
+        }
+    }
+
+    scene* currentScene = scenes[0];
+    int choice;
+
+    while (currentScene && p->gameTriggers[isAlive]) {
+        updateSceneConditions(currentScene, p);
+        displayScene(currentScene, p);
+        type("Enter choice (1-%d, 0 to quit): ", currentScene->numChoices);
+        if (scanf("%d", &choice) != 1 || choice < 0 || choice > currentScene->numChoices) {
+            type("Invalid input!\n");
+            while (getchar() != '\n');
+            continue;
+        }
+        if (choice == 0) break;
+        currentScene = processChoice(currentScene, p, choice - 1);
+    }
+
+    if (!p->gameTriggers[isAlive]) {
+        type("Game Over.\n");
+    }
+
+    for (int i = 0; i < numScenes; i++) {
+        freeScene(scenes[i]);
+    }
+    freePlayer(p);
+    return 0;
+}
