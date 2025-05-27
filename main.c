@@ -13,7 +13,7 @@
 #endif
 
 // Structs and Enum
-#define MAX_INVENTORY_SIZE 10
+#define MAX_INVENTORY_SIZE 100
 #define NUM_TRIGGERS 4
 #define MAX_LEVEL 100
 
@@ -21,7 +21,7 @@ typedef enum {
     isAlive = 0,
     hasAxe = 1,
     hasKey1 = 2,
-    hasKey2 = 3
+    cyclopsKilled = 3
 } triggerNums;
 
 typedef struct {
@@ -97,6 +97,13 @@ enemy allEnemy[] = {
         1,
         "normal",
         {15, 15, 25, 100, 20, (status){false, false, false, false}}
+    },
+    {
+        "cyclops", 90,
+        {{"club attack", 100, 10, 1, "NULL"}, {"body slam", 50, 30, 1, "NULL"}, {"enrage", 0, 100, 1, "atkBuff"}, {"laser eye", 0, 100, 0, "brn"}},
+        1,
+        "dark",
+        {150, 15, 5, 100, 10, (status){false, false, false, false}}
     }
 };
 
@@ -112,8 +119,8 @@ void updateSceneConditions(scene* currentScene, player* p);
 void freeScene(scene* s);
 void freePlayer(player* p);
 void freeEnemy(enemy* e);
-enemy* createEnemy(player* p);
-void init_combat(player* p);
+enemy* createEnemy(player* p, int enemyIndex);
+void init_combat(player* p, enemy* e);
 void type(const char* format, ...);
 void lvlUp(player* p);
 
@@ -155,8 +162,7 @@ void type(const char* format, ...) {
     }
 }
 
-void init_combat(player* p) {
-    enemy* e = createEnemy(p);
+void init_combat(player* p, enemy* e) {
     if (!e) return;
     type("A level %d %s appears in front of you.\n", e->lvl, e->name);
     int choice;
@@ -261,8 +267,8 @@ void init_combat(player* p) {
     freeEnemy(e);
 }
 
-enemy* createEnemy(player* p) {
-    int enemyIndex = rand() % 2;
+enemy* createEnemy(player* p, int enemyIndex) {
+    if (enemyIndex == -1) enemyIndex = rand() % 2;
     enemy* newEnemy = malloc(sizeof(enemy));
     if (!newEnemy) return NULL;
     *newEnemy = allEnemy[enemyIndex];
@@ -408,11 +414,8 @@ scene* processChoice(scene* currentScene, player* p, int choiceIndex) {
                 addItemToInventory("Key1", p->inv);
                 p->gameTriggers[hasKey1] = true;
                 type("Picked up Key1!\n");
-                return currentScene->nextScenePerChoice[choiceNumber - 1];
-            } else {
-                type("You have already picked up a key.\n");
-                return currentScene->nextScenePerChoice[choiceNumber - 1];
             }
+            return currentScene->nextScenePerChoice[choiceNumber - 1];
         case 103: // Scene 1: Unlock gate
             if (p->gameTriggers[hasKey1]) {
                 type("Gate unlocked with Key1!\n");
@@ -433,12 +436,26 @@ scene* processChoice(scene* currentScene, player* p, int choiceIndex) {
             type("You go back to the dark room.\n");
             return currentScene->nextScenePerChoice[choiceNumber - 1];
         case 203: // Scene 2: Fight slime
-            init_combat(p);
+            init_combat(p, createEnemy(p ,-1));
             if (!p->gameTriggers[isAlive]) {
                 type("Game Over.\n");
                 return NULL;
             }
             return currentScene;
+        case 301:  //Fight Cyclops
+            init_combat(p, createEnemy(p, 2));
+            if (!p->gameTriggers[isAlive]) {
+                type("Game Over.\n");
+                return NULL;
+            }
+            p->gameTriggers[cyclopsKilled] = true;
+            return currentScene;
+        case 302:
+            return currentScene->nextScenePerChoice[choiceNumber - 1];
+            break;
+        case 303:
+            return currentScene->nextScenePerChoice[choiceNumber - 1];
+            break;
         default:
             type("Invalid choice ID.\n");
             return currentScene;
@@ -477,6 +494,12 @@ void updateSceneConditions(scene* currentScene, player* p) {
                 break;
             case 203: // Fight slime
                 currentScene->choiceConditions[i] = true;
+                break;
+            case 302: // Go back to previous room
+                currentScene->choiceConditions[i] = p->gameTriggers[cyclopsKilled];
+                break;
+            case 303: // Game End
+                currentScene->choiceConditions[i] = p->gameTriggers[cyclopsKilled];
                 break;
             default:
                 currentScene->choiceConditions[i] = true;
@@ -526,7 +549,7 @@ int main() {
     player* p = createPlayer(3);
     if (!p) return 1;
 
-    const int numScenes = 2;
+    const int numScenes = 3;
     scene* scenes[numScenes];
     scene** nextScenes[numScenes];
 
@@ -537,9 +560,14 @@ int main() {
     char* choices2[] = {"Chop door", "Go back to dark room", "Fight the enemy", NULL};
     bool conditions2[] = {true, true, true};
     scene* nextScenes2[3] = {NULL, NULL, NULL};
+    
+    char* choices3[] = {"Fight the cyclops", "Go back to previous room", "End Game",  NULL};
+    bool conditions3[] = {true, true, true};
+    scene* nextScenes3[3] = {NULL ,NULL, NULL};
 
     scenes[0] = createScene(3, "A dark room with an axe and a gate.", choices1, conditions1, NULL, nextScenes1, 1);
     scenes[1] = createScene(3, "A room with a wooden door and an enemy lurking.", choices2, conditions2, NULL, nextScenes2, 2);
+    scenes[2] = createScene(3, "There is an angry Cyclops in the room", choices3, conditions3, NULL, nextScenes3, 3);
     for (int i = 0; i < numScenes; i++) {
         if (!scenes[i]) {
             for (int j = 0; j < i; j++) freeScene(scenes[j]);
@@ -550,12 +578,22 @@ int main() {
 
     nextScenes[0] = nextScenes1;
     nextScenes[1] = nextScenes2;
+    nextScenes[2] = nextScenes3;
+    
+
+        
     nextScenes1[0] = scenes[0];
     nextScenes1[1] = scenes[0];
     nextScenes1[2] = scenes[1];
-    nextScenes2[0] = NULL;
+
+        
+    nextScenes2[0] = scenes[2];
     nextScenes2[1] = scenes[0];
     nextScenes2[2] = scenes[1];
+
+    nextScenes3[0] = scenes[2];
+    nextScenes3[1] = scenes[1];
+    nextScenes3[2] = NULL;
 
     for (int i = 0; i < numScenes; i++) {
         for (int j = 0; j < scenes[i]->numChoices; j++) {
