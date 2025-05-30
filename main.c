@@ -28,6 +28,13 @@ typedef enum {
     cyclopsKilled = 3
 } triggerNums;
 
+typedef enum {
+    slime = 0,
+    goblin = 1,
+    cyclops = 2,
+    randomEnemy = -1
+}enemyNum;
+
 typedef struct {
     int capacity;
     int currentSize;
@@ -310,7 +317,7 @@ void init_combat(player* p, enemy* e) {
 }
 
 enemy* createEnemy(player* p, int enemyIndex) {
-    if (enemyIndex == -1) enemyIndex = rand() % 2;
+    if (enemyIndex == randomEnemy) enemyIndex = rand() % 2;
     enemy* newEnemy = malloc(sizeof(enemy));
     if (!newEnemy) return NULL;
     *newEnemy = allEnemy[enemyIndex];
@@ -478,14 +485,14 @@ scene* processChoice(scene* currentScene, player* p, int choiceIndex) {
             type("You go back to the dark room.\n");
             return currentScene->nextScenePerChoice[choiceNumber - 1];
         case 203: // Scene 2: Fight slime
-            init_combat(p, createEnemy(p ,-1));
+            init_combat(p, createEnemy(p ,randomEnemy));
             if (!p->gameTriggers[isAlive]) {
                 type("Game Over.\n");
                 return NULL;
             }
             return currentScene;
         case 301:  //Fight Cyclops
-            init_combat(p, createEnemy(p, 2));
+            init_combat(p, createEnemy(p, cyclops));
             if (!p->gameTriggers[isAlive]) {
                 type("Game Over.\n");
                 return NULL;
