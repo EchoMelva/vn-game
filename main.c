@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,8 +9,11 @@
 
 #ifdef _WIN32
 #include <windows.h>
+#include <conio.h>
 #else
 #include <unistd.h>
+#include <termios.h>
+#include <poll.h>
 #endif
 
 // Structs and Enum
@@ -147,19 +151,57 @@ void lvlUp(player* p) {
 void type(const char* format, ...) {
     va_list args;
     va_start(args, format);
-    char buffer[1024];
+    char buffer[8096];
     vsnprintf(buffer, sizeof(buffer), format, args);
     va_end(args);
+
+#ifndef _WIN32
+    // Set up non-blocking input for Unix-like systems
+    struct termios oldt, newt;
+    tcgetattr(STDIN_FILENO, &oldt);
+    newt = oldt;
+    newt.c_lflag &= ~(ICANON | ECHO); // Disable canonical mode and echo
+    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+#endif
 
     for (int i = 0; buffer[i] != '\0'; i++) {
         putchar(buffer[i]);
         fflush(stdout);
+
+        // Check for Enter key
 #ifdef _WIN32
-        Sleep(30);
+        if (_kbhit()) {
+            int ch = _getch();
+            if (ch == '\r') { // Enter key on Windows
+                printf("%s", buffer + i + 1); // Print remaining buffer
+                break;
+            }
+        }
 #else
-        usleep(30000);
+        struct pollfd fds[1];
+        fds[0].fd = STDIN_FILENO;
+        fds[0].events = POLLIN;
+        int ret = poll(fds, 1, 0); // Non-blocking check
+        if (ret > 0 && fds[0].revents & POLLIN) {
+            int ch = getchar();
+            if (ch == '\n') { // Enter key on Unix
+                printf("%s", buffer + i + 1); // Print remaining buffer
+                break;
+            }
+        }
+#endif
+
+#ifdef _WIN32
+        Sleep(25); // 30ms delay
+#else
+        usleep(25000); // 30ms delay
 #endif
     }
+
+#ifndef _WIN32
+    // Restore terminal settings
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+#endif
 }
 
 void init_combat(player* p, enemy* e) {
@@ -485,13 +527,19 @@ scene* processChoice(scene* currentScene, player* p, int choiceIndex) {
 
 void displayScene(scene* currentScene, player* p) {
     if (!currentScene || !p) return;
-    type("\n%s\n", currentScene->description);
-    type("What do you do?\n");
+    char temp[8096] = {0};
+    int len;
+    snprintf(temp, sizeof(temp), "\n%s\nWhat do you do?\n", currentScene->description);
+    len = strlen(temp);
     for (int i = 0; i < currentScene->numChoices; i++) {
         if (currentScene->choiceConditions[i]) {
-            type("%d. %s\n", i + 1, currentScene->choices[i]);
+            char choice[512];
+            snprintf(choice, sizeof(choice), "%d. %s\n", i + 1, currentScene->choices[i]);
+            strncat(temp, choice, sizeof(temp)- len -1);
+            len += strlen(choice);
         }
     }
+    type("%s", temp, NULL);
 }
 
 void updateSceneConditions(scene* currentScene, player* p) {
