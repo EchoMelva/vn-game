@@ -219,7 +219,7 @@ void init_combat(player* p, enemy* e) {
         type("Your HP: %d\n", p->stat.hp);
         type("%s's HP: %d\n", e->name, e->stat.hp);
         type("What do you do?\n");
-        type("1. Attack\n2. Run Away\n");
+        type("1. Attack\n2. Run Away\n3. Pray\n");
         if (scanf("%d", &choice) != 1) {
             type("Invalid input. Please enter a number.\n");
             while (getchar() != '\n');
@@ -248,7 +248,28 @@ void init_combat(player* p, enemy* e) {
                 e->stat.hp -= damage;
                 type("You did %d damage!\n", damage);
             }
-        } else {
+        }
+
+            else if (choice == 3) { // Pray
+          int prayerOutcome = rand() % 3; // Randomly picks 0, 1, or 2
+        switch (prayerOutcome) {
+        case 0: // Divine blessing (HP +50)
+            p->stat.hp += 50;
+            if (p->stat.hp > p->baseStats.hp) p->stat.hp = p->baseStats.hp; // Prevent overheal
+            type("The Divine God blesses you! (+50 HP)\n");
+            break;
+        case 1: // Smite enemy (HP -60)
+            e->stat.hp -= 60;
+            type("The Divine God smites your foe! (-60 HP)\n");
+            break;
+        case 2: // Punishment (HP -50)
+            p->stat.hp -= 50;
+            type("The Divine God punishes you for your sins! (-50 HP)\n");
+            break;
+        }
+    }
+        
+        else {
             type("Invalid choice.\n");
             continue;
         }
