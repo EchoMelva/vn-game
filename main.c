@@ -35,10 +35,38 @@ typedef enum {
     randomEnemy = -1
 }enemyNum;
 
+typedef enum {
+    consumable,
+    equipment,
+    keyItem,
+    ingredient
+}itemType;
+
+typedef enum {
+    axe = 0
+} equipmentNum;
+
+typedef enum {
+    key1 = 0
+} keyItemNum;
+
+typedef struct {
+    char* name;
+    itemType type;
+    union 
+    {
+        struct {int amount; char* effect; } consumable;
+        struct {int lvl; int durability; char* type; int hp; int atk; int def; int acc; int agility; bool isEquipped; } equipment;
+        struct { } keyItem;
+        struct {int amount; } ingredient;
+    }data;
+    
+} item;
+
 typedef struct {
     int capacity;
     int currentSize;
-    char* items[MAX_INVENTORY_SIZE];
+    item* items[MAX_INVENTORY_SIZE];
 } inventory;
 
 typedef struct {
@@ -94,6 +122,13 @@ typedef struct {
     stats stat;
 } enemy;
 
+item allEquipment[] = {
+    {"Axe", equipment, .data.equipment = {1, 100, "weapon", 0, 10, 0, 100, 0, false}},
+};
+item allKeyItem[] = {
+    {"Key1", keyItem, .data.keyItem = {}},
+};
+
 enemy allEnemy[] = {
     {
         "slime", 50,
@@ -121,7 +156,7 @@ enemy allEnemy[] = {
 // Function declarations
 player* createPlayer(int inventoryCapacity);
 inventory* createInventory(int capacity);
-void addItemToInventory(char* item, inventory* inventory);
+void addItemToInventory(item* item, inventory* inventory);
 void removeItemFromInventory(char* item, inventory* inventory);
 scene* createScene(int numChoices, char* description, char** choices, bool* choiceConditions, int* choiceIds, scene** nextScenePerChoice, int sceneNo);
 scene* processChoice(scene* currentScene, player* p, int choiceIndex);
@@ -393,29 +428,71 @@ inventory* createInventory(int capacity) {
     return inv;
 }
 
-void addItemToInventory(char* item, inventory* inventory) {
-    if (!inventory || !item) return;
+void addItemToInventory(item* newItem, inventory* inventory) {
+    if (!inventory || !newItem) return;
     if (inventory->currentSize >= inventory->capacity) {
         type("Inventory is full\n");
         return;
     }
-    inventory->items[inventory->currentSize] = strdup(item);
-    if (inventory->items[inventory->currentSize]) {
-        inventory->currentSize++;
-    } else {
+    item* item = malloc(sizeof(item));
+    if (!item) {
         type("Failed to add item: memory allocation error\n");
+        return;
     }
-}
+    item->type = newItem->type;
+    item->name = strdup(newItem->name);
 
-void removeItemFromInventory(char* item, inventory* inventory) {
-    if (!inventory || !item) return;
+    switch (item->type) {
+        case consumable:
+            item->data.consumable.amount = newItem->data.consumable.amount;
+            item->data.consumable.effect = strdup(newItem->data.consumable.effect);
+            break;
+        case equipment:
+            item->data.equipment.lvl = newItem->data.equipment.lvl;
+            item->data.equipment.durability = newItem->data.equipment.durability;
+            item->data.equipment.type = strdup(newItem->data.equipment.type);
+            item->data.equipment.hp = newItem->data.equipment.hp;
+            item->data.equipment.atk = newItem->data.equipment.atk;
+            item->data.equipment.def = newItem->data.equipment.def;
+            item->data.equipment.acc = newItem->data.equipment.acc;
+            item->data.equipment.agility = newItem->data.equipment.agility;
+            item->data.equipment.isEquipped = newItem->data.equipment.isEquipped;
+            break;
+        case keyItem:
+            // No specific data for key items
+            break;
+        case ingredient:
+            item->data.ingredient.amount = newItem->data.ingredient.amount;
+            break;
+    }
+
+    inventory->items[inventory->currentSize] = item;
+    inventory->currentSize++;
+}
+void removeItemFromInventory(char* itemName, inventory* inventory) {
+    if (!inventory || !itemName) return;
     if (inventory->currentSize == 0) {
         type("Inventory is Empty\n");
         return;
     }
     for (int i = 0; i < inventory->currentSize; i++) {
-        if (inventory->items[i] && strcmp(inventory->items[i], item) == 0) {
+        if (inventory->items[i] && strcmp(inventory->items[i]->name, itemName) == 0) {
+            // Free type-specific data
+            switch (inventory->items[i]->type) {
+                case consumable:
+                    free(inventory->items[i]->data.consumable.effect);
+                    break;
+                case equipment:
+                    free(inventory->items[i]->data.equipment.type);
+                    break;
+                case keyItem:
+                case ingredient:
+                    // No additional fields to free
+                    break;
+            }
+            free(inventory->items[i]->name);
             free(inventory->items[i]);
+            // Shift items
             for (int j = i; j < inventory->currentSize - 1; j++) {
                 inventory->items[j] = inventory->items[j + 1];
             }
@@ -426,7 +503,6 @@ void removeItemFromInventory(char* item, inventory* inventory) {
     }
     type("Item not in inventory\n");
 }
-
 scene* createScene(int numChoices, char* description, char** choices, bool* choiceConditions, int* choiceIds, scene** nextScenePerChoice, int sceneNo) {
     scene* newScene = malloc(sizeof(scene) + sizeof(char*) * numChoices);
     if (!newScene) return NULL;
@@ -474,14 +550,14 @@ scene* processChoice(scene* currentScene, player* p, int choiceIndex) {
     switch (choiceId) {
         case 101: // Scene 1: Pick up axe
             if (!p->gameTriggers[hasAxe]) {
-                addItemToInventory("Axe", p->inv);
+                addItemToInventory(&allEquipment[axe], p->inv);
                 p->gameTriggers[hasAxe] = true;
                 type("Picked up Axe!\n");
             }
             return currentScene->nextScenePerChoice[choiceNumber - 1];
         case 102: // Scene 1: Pick up key1
             if (!p->gameTriggers[hasKey1]) {
-                addItemToInventory("Key1", p->inv);
+                addItemToInventory(&allKeyItem[key1], p->inv);
                 p->gameTriggers[hasKey1] = true;
                 type("Picked up Key1!\n");
             }
@@ -599,10 +675,27 @@ void freeScene(scene* s) {
 
 void freePlayer(player* p) {
     if (p) {
-        for (int i = 0; i < p->inv->currentSize; i++) {
-            free(p->inv->items[i]);
+        if (p->inv) {
+            for (int i = 0; i < p->inv->currentSize; i++) {
+                if (p->inv->items[i]) {
+                    switch (p->inv->items[i]->type) {
+                        case consumable:
+                            free(p->inv->items[i]->data.consumable.effect);
+                            break;
+                        case equipment:
+                            free(p->inv->items[i]->data.equipment.type);
+                            break;
+                        case keyItem:
+                        case ingredient:
+                            // No additional fields to free
+                            break;
+                    }
+                    free(p->inv->items[i]->name);
+                    free(p->inv->items[i]);
+                }
+            }
+            free(p->inv);
         }
-        free(p->inv);
         free(p);
     }
 }
