@@ -57,7 +57,7 @@ typedef struct {
         struct { char* description; int amount; char* effect; } consumable;
         struct { int type; int hp, def, atk, agility, acc; bool isEquipped; } equipment;
         struct { char* description; } keyItem;
-        struct { char* name; int amount; } ingredient;
+        struct { int amount; } ingredient;
     } data;
 } item;
 
@@ -291,13 +291,7 @@ void addItem(inventory* inv, item newItem) {
                 }
                 break;
             case ingredient:
-                inv->items[inv->itemCount].data.ingredient.name = strdup(newItem.data.ingredient.name ? newItem.data.ingredient.name : "");
                 inv->items[inv->itemCount].data.ingredient.amount = newItem.data.ingredient.amount;
-                if (!inv->items[inv->itemCount].data.ingredient.name) {
-                    free(inv->items[inv->itemCount].name);
-                    type("Error: Failed to allocate ingredient name\n");
-                    return;
-                }
                 break;
         }
         inv->itemCount++;
@@ -329,7 +323,6 @@ void removeItemFromInventory(char* itemName, inventory* inv) {
                     free(inv->items[i].data.keyItem.description);
                     break;
                 case ingredient:
-                    free(inv->items[i].data.ingredient.name);
                     break;
             }
             for (int j = i; j < inv->itemCount - 1; j++) {
@@ -468,7 +461,6 @@ void freeInventory(inventory* inv) {
                     free(inv->items[i].data.keyItem.description);
                     break;
                 case ingredient:
-                    free(inv->items[i].data.ingredient.name);
                     break;
             }
         }
@@ -942,10 +934,10 @@ player* createPlayer() {
     p->xen = 30;
     p->baseStats = (stats){200, 20, 30, 100, 20, (status){false, false, false, false}};
     p->stat = (stats){200, 20, 30, 100, 20, (status){false, false, false, false}};
-    p->equipment.helmet = (item){ .type=equipment, .data.equipment = { .isEquipped = false } };
-    p->equipment.armour = (item){ .type=equipment, .data.equipment = { .isEquipped = false } };
-    p->equipment.weapon = (item){ .type=equipment, .data.equipment = { .isEquipped = false } };
-    p->equipment.accessory = (item){ .type=equipment, .data.equipment = { .isEquipped = false } };
+    p->equipment.helmet = (item){ .itemType=equipment, .data.equipment = { .isEquipped = false } };
+    p->equipment.armour = (item){ .itemType=equipment, .data.equipment = { .isEquipped = false } };
+    p->equipment.weapon = (item){ .itemType=equipment, .data.equipment = { .isEquipped = false } };
+    p->equipment.accessory = (item){ .itemType=equipment, .data.equipment = { .isEquipped = false } };
 
     return p;
 }
