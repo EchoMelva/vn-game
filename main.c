@@ -16,8 +16,8 @@
 #include <poll.h>
 #endif
 
-// Structs and Enum
-#define MAX_INVENTORY_SIZE 100
+// Enums
+#define inventoryCapacity 100
 #define NUM_TRIGGERS 4
 #define MAX_LEVEL 100
 
@@ -43,34 +43,27 @@ typedef enum {
 } itemType;
 
 typedef enum {
-    axe = 0
-} equipmentNum;
-
-typedef enum {
-    key1 = 0
-} keyItemNum;
-
-typedef enum {
     helmet = 0,
     armour = 1,
     weapon = 2,
     accessory = 3
 } equipmentType;
 
+// Structs
 typedef struct {
-    itemType type;
+    char* name;
+    int itemType;
     union {
-        struct { char* name; int amount; char* effect; } consumable;
-        struct { equipmentNum eqNum; int lvl; int durability; int type; int hp; int atk; int def; int acc; int agility; bool isEquipped; } equipment;
-        struct { char* name; } keyItem;
+        struct { char* description; int amount; char* effect; } consumable;
+        struct { int type; int hp, def, atk, agility, acc; bool isEquipped; } equipment;
+        struct { char* description; } keyItem;
         struct { char* name; int amount; } ingredient;
     } data;
 } item;
 
 typedef struct {
-    int capacity;
-    int currentSize;
-    item* items[MAX_INVENTORY_SIZE];
+    item items[inventoryCapacity];
+    int itemCount;
 } inventory;
 
 typedef struct {
@@ -103,7 +96,6 @@ typedef struct {
         item armour;
         item weapon;
         item accessory;
-        
     } equipment;
 } player;
 
@@ -165,14 +157,18 @@ typedef struct {
     stats stat;
 } enemy;
 
-const item allEquipment[] = {
-    { equipment, .data.equipment = { axe, 1, 100, weapon, 0, 10, 0, 100, 0, false } },
+// Item arrays
+item consumables[] = {
+    {"Health Potion", consumable, {.consumable = {"Restores 50 HP", 1, "Healing"}}},
+    {"Mana Potion", consumable, {.consumable = {"Restores 30 MP", 1, "Mana Recovery"}}}
 };
-const item allKeyItem[] = {
-    { keyItem, .data.keyItem = { "Key1" } },
+item equipments[] = {
+    {"Rusty Axe", equipment, {.equipment = {weapon, 0, 0, 10, 0, 100, false}}},
+    {"Leather Armor", equipment, {.equipment = {armour, 5, 3, 0, 0, 0, false}}}
 };
-char* equipmentName[] = {       //Desperate try
-    "Rusty Axe"
+item keyItems[] = {
+    {"Key1", keyItem, {.keyItem = {"A key to unlock the gate."}}},
+    {"Treasure Map", keyItem, {.keyItem = {"A map leading to hidden treasure."}}}
 };
 
 enemy allEnemy[] = {
@@ -197,14 +193,14 @@ enemy allEnemy[] = {
 };
 
 // Function declarations
-player* createPlayer(int inventoryCapacity);
-inventory* createInventory(int capacity);
-void addItemToInventory(const item* item, inventory* inventory);
-void removeItemFromInventory(char* item, inventory* inventory);
+player* createPlayer();
+inventory* createInventory();
+void addItem(inventory* inv, item newItem);
+void removeItemFromInventory(char* itemName, inventory* inv);
+void displayInventory(inventory* inv, player* p);
 scene* createScene(int numChoices, char* description, char** choices, bool* choiceConditions, int* choiceIds, scene** nextScenePerChoice, int sceneNo);
 scene* processChoice(scene* currentScene, player* p, int choiceIndex);
 void displayScene(scene* currentScene, player* p);
-void displayInventory(player* p);
 void updateSceneConditions(scene* currentScene, player* p);
 void freeScene(scene* s);
 void freePlayer(player* p);
@@ -214,8 +210,272 @@ void init_combat(player* p, enemy* e);
 void type(const char* format, ...);
 void lvlUp(player* p);
 void equipItem(player* p, item* item);
+void unequipItem(player* p, int equipmentType);
 
 // Function implementations
+inventory* createInventory() {
+    inventory* inv = (inventory*)malloc(sizeof(inventory));
+    if (inv != NULL) {
+        inv->itemCount = 0;
+        for (int i = 0; i < inventoryCapacity; i++) {
+            inv->items[i].name = NULL;
+            inv->items[i].itemType = consumable; // Default to avoid uninitialized access
+            inv->items[i].data.consumable.description = NULL;
+            inv->items[i].data.consumable.effect = NULL;
+            inv->items[i].data.consumable.amount = 0;
+        }
+    }
+    return inv;
+}
+
+void addItem(inventory* inv, item newItem) {
+    if (!inv || !newItem.name) {
+        type("Error: Invalid inventory or item name\n");
+        return;
+    }
+    if (inv->itemCount < inventoryCapacity) {
+        for (int i = 0; i < inv->itemCount; i++) {
+            if (strcmp(inv->items[i].name, newItem.name) == 0) {
+                switch (inv->items[i].itemType) {
+                    case consumable:
+                        inv->items[i].data.consumable.amount += newItem.data.consumable.amount;
+                        type("Updated %s amount to %d.\n", inv->items[i].name, inv->items[i].data.consumable.amount);
+                        return;
+                    case equipment:
+                        type("%s already exists as equipment.\n", inv->items[i].name);
+                        return;
+                    case keyItem:
+                        type("%s already exists as a key item.\n", inv->items[i].name);
+                        return;
+                    case ingredient:
+                        inv->items[i].data.ingredient.amount += newItem.data.ingredient.amount;
+                        type("Updated %s amount to %d.\n", inv->items[i].name, inv->items[i].data.ingredient.amount);
+                        return;
+                }
+            }
+        }
+        inv->items[inv->itemCount].name = strdup(newItem.name);
+        if (!inv->items[inv->itemCount].name) {
+            type("Error: Failed to allocate item name\n");
+            return;
+        }
+        inv->items[inv->itemCount].itemType = newItem.itemType;
+        switch (newItem.itemType) {
+            case consumable:
+                inv->items[inv->itemCount].data.consumable.description = strdup(newItem.data.consumable.description ? newItem.data.consumable.description : "");
+                inv->items[inv->itemCount].data.consumable.amount = newItem.data.consumable.amount;
+                inv->items[inv->itemCount].data.consumable.effect = strdup(newItem.data.consumable.effect ? newItem.data.consumable.effect : "");
+                if (!inv->items[inv->itemCount].data.consumable.description || !inv->items[inv->itemCount].data.consumable.effect) {
+                    free(inv->items[inv->itemCount].name);
+                    free(inv->items[inv->itemCount].data.consumable.description);
+                    free(inv->items[inv->itemCount].data.consumable.effect);
+                    type("Error: Failed to allocate consumable fields\n");
+                    return;
+                }
+                break;
+            case equipment:
+                inv->items[inv->itemCount].data.equipment.type = newItem.data.equipment.type;
+                inv->items[inv->itemCount].data.equipment.hp = newItem.data.equipment.hp;
+                inv->items[inv->itemCount].data.equipment.def = newItem.data.equipment.def;
+                inv->items[inv->itemCount].data.equipment.atk = newItem.data.equipment.atk;
+                inv->items[inv->itemCount].data.equipment.agility = newItem.data.equipment.agility;
+                inv->items[inv->itemCount].data.equipment.acc = newItem.data.equipment.acc;
+                inv->items[inv->itemCount].data.equipment.isEquipped = newItem.data.equipment.isEquipped;
+                break;
+            case keyItem:
+                inv->items[inv->itemCount].data.keyItem.description = strdup(newItem.data.keyItem.description ? newItem.data.keyItem.description : "");
+                if (!inv->items[inv->itemCount].data.keyItem.description) {
+                    free(inv->items[inv->itemCount].name);
+                    type("Error: Failed to allocate key item description\n");
+                    return;
+                }
+                break;
+            case ingredient:
+                inv->items[inv->itemCount].data.ingredient.name = strdup(newItem.data.ingredient.name ? newItem.data.ingredient.name : "");
+                inv->items[inv->itemCount].data.ingredient.amount = newItem.data.ingredient.amount;
+                if (!inv->items[inv->itemCount].data.ingredient.name) {
+                    free(inv->items[inv->itemCount].name);
+                    type("Error: Failed to allocate ingredient name\n");
+                    return;
+                }
+                break;
+        }
+        inv->itemCount++;
+    } else {
+        type("Inventory is full!\n");
+    }
+}
+
+void removeItemFromInventory(char* itemName, inventory* inv) {
+    if (!inv || !itemName) {
+        type("Error: Null inventory or item name\n");
+        return;
+    }
+    if (inv->itemCount == 0) {
+        type("Inventory is empty\n");
+        return;
+    }
+    for (int i = 0; i < inv->itemCount; i++) {
+        if (strcmp(inv->items[i].name, itemName) == 0) {
+            free(inv->items[i].name);
+            switch (inv->items[i].itemType) {
+                case consumable:
+                    free(inv->items[i].data.consumable.description);
+                    free(inv->items[i].data.consumable.effect);
+                    break;
+                case equipment:
+                    break;
+                case keyItem:
+                    free(inv->items[i].data.keyItem.description);
+                    break;
+                case ingredient:
+                    free(inv->items[i].data.ingredient.name);
+                    break;
+            }
+            for (int j = i; j < inv->itemCount - 1; j++) {
+                inv->items[j] = inv->items[j + 1];
+            }
+            inv->itemCount--;
+            type("Removed %s from inventory\n", itemName);
+            return;
+        }
+    }
+    type("Item not in inventory\n");
+}
+
+void displayInventory(inventory* inv, player* p) {
+    if (!inv || !p) {
+        type("No inventory to display.\n");
+        return;
+    }
+    if (inv->itemCount == 0) {
+        type("Inventory is empty.\n");
+        return;
+    }
+    while (true) {
+        type("Your Inventory:\n1. Consumables\n2. Equipment\n3. Key Items\n4. Ingredients\n5. Exit\n");
+        char input[10];
+        if (fgets(input, sizeof(input), stdin) == NULL) {
+            type("Error reading input.\n");
+            return;
+        }
+        input[strcspn(input, "\n")] = '\0';
+        int choice = atoi(input);
+        if (choice < 1 || choice > 5) {
+            type("Invalid choice. Please enter 1-5.\n");
+            continue;
+        }
+        bool hasItems = false;
+        switch (choice) {
+            case 1:
+                type("Consumables:\n");
+                for (int i = 0; i < inv->itemCount; i++) {
+                    if (inv->items[i].itemType == consumable) {
+                        hasItems = true;
+                        type("%d. %s (Amount: %d, Description: %s, Effect: %s)\n",
+                             i + 1, inv->items[i].name,
+                             inv->items[i].data.consumable.amount,
+                             inv->items[i].data.consumable.description,
+                             inv->items[i].data.consumable.effect);
+                    }
+                }
+                if (!hasItems) type("No consumables.\n");
+                break;
+            case 2:
+                type("Equipment:\n");
+                for (int i = 0; i < inv->itemCount; i++) {
+                    if (inv->items[i].itemType == equipment) {
+                        hasItems = true;
+                        type("%d. %s (HP: %d, DEF: %d, ATK: %d, Agility: %d, ACC: %d, Equipped: %s)\n",
+                             i + 1, inv->items[i].name,
+                             inv->items[i].data.equipment.hp,
+                             inv->items[i].data.equipment.def,
+                             inv->items[i].data.equipment.atk,
+                             inv->items[i].data.equipment.agility,
+                             inv->items[i].data.equipment.acc,
+                             inv->items[i].data.equipment.isEquipped ? "Yes" : "No");
+                    }
+                }
+                if (!hasItems) {
+                    type("No equipment.\n");
+                    break;
+                }
+                type("Do you want to equip an item? (y/n)\n");
+                char equipChoice[10];
+                if (fgets(equipChoice, sizeof(equipChoice), stdin) == NULL) {
+                    type("Error reading input.\n");
+                    return;
+                }
+                equipChoice[strcspn(equipChoice, "\n")] = '\0';
+                if (strcmp(equipChoice, "y") == 0 || strcmp(equipChoice, "Y") == 0) {
+                    type("Enter the number of the item to equip:\n");
+                    char equipInput[10];
+                    if (fgets(equipInput, sizeof(equipInput), stdin) == NULL) {
+                        type("Error reading input.\n");
+                        return;
+                    }
+                    equipInput[strcspn(equipInput, "\n")] = '\0';
+                    int equipIndex = atoi(equipInput) - 1;
+                    if (equipIndex < 0 || equipIndex >= inv->itemCount || inv->items[equipIndex].itemType != equipment) {
+                        type("Invalid item number or not equipment.\n");
+                    } else {
+                        equipItem(p, &inv->items[equipIndex]);
+                    }
+                }
+                break;
+            case 3:
+                type("Key Items:\n");
+                for (int i = 0; i < inv->itemCount; i++) {
+                    if (inv->items[i].itemType == keyItem) {
+                        hasItems = true;
+                        type("%d. %s (Description: %s)\n",
+                             i + 1, inv->items[i].name,
+                             inv->items[i].data.keyItem.description);
+                    }
+                }
+                if (!hasItems) type("No key items.\n");
+                break;
+            case 4:
+                type("Ingredients:\n");
+                for (int i = 0; i < inv->itemCount; i++) {
+                    if (inv->items[i].itemType == ingredient) {
+                        hasItems = true;
+                        type("%d. %s (Amount: %d)\n",
+                             i + 1, inv->items[i].name,
+                             inv->items[i].data.ingredient.amount);
+                    }
+                }
+                if (!hasItems) type("No ingredients.\n");
+                break;
+            case 5:
+                return;
+        }
+    }
+}
+
+void freeInventory(inventory* inv) {
+    if (inv != NULL) {
+        for (int i = 0; i < inv->itemCount; i++) {
+            free(inv->items[i].name);
+            switch (inv->items[i].itemType) {
+                case consumable:
+                    free(inv->items[i].data.consumable.description);
+                    free(inv->items[i].data.consumable.effect);
+                    break;
+                case equipment:
+                    break;
+                case keyItem:
+                    free(inv->items[i].data.keyItem.description);
+                    break;
+                case ingredient:
+                    free(inv->items[i].data.ingredient.name);
+                    break;
+            }
+        }
+        free(inv);
+    }
+}
+
 void unequipItem(player* p, int equipmentType) {
     if (!p) {
         type("Error: Invalid player\n");
@@ -225,81 +485,75 @@ void unequipItem(player* p, int equipmentType) {
         type("Error: Invalid equipment type\n");
         return;
     }
-    switch(equipmentType) {
-        case 0:
+    switch (equipmentType) {
+        case helmet:
             if (p->equipment.helmet.data.equipment.isEquipped) {
                 p->baseStats.hp -= p->equipment.helmet.data.equipment.hp;
                 p->baseStats.atk -= p->equipment.helmet.data.equipment.atk;
                 p->baseStats.def -= p->equipment.helmet.data.equipment.def;
                 p->baseStats.acc -= p->equipment.helmet.data.equipment.acc;
                 p->baseStats.agility -= p->equipment.helmet.data.equipment.agility;
-
                 p->stat.hp -= p->equipment.helmet.data.equipment.hp;
                 p->stat.atk -= p->equipment.helmet.data.equipment.atk;
                 p->stat.def -= p->equipment.helmet.data.equipment.def;
                 p->stat.acc -= p->equipment.helmet.data.equipment.acc;
                 p->stat.agility -= p->equipment.helmet.data.equipment.agility;
-
                 p->equipment.helmet.data.equipment.isEquipped = false;
-                type("Unequipped %s\n", equipmentName[p->equipment.helmet.data.equipment.eqNum]);
+                type("Unequipped %s\n", p->equipment.helmet.name);
             } else {
                 type("Helmet is not equipped\n");
             }
             break;
-        case 1:
+        case armour:
             if (p->equipment.armour.data.equipment.isEquipped) {
                 p->baseStats.hp -= p->equipment.armour.data.equipment.hp;
                 p->baseStats.atk -= p->equipment.armour.data.equipment.atk;
                 p->baseStats.def -= p->equipment.armour.data.equipment.def;
                 p->baseStats.acc -= p->equipment.armour.data.equipment.acc;
                 p->baseStats.agility -= p->equipment.armour.data.equipment.agility;
-
                 p->stat.hp -= p->equipment.armour.data.equipment.hp;
                 p->stat.atk -= p->equipment.armour.data.equipment.atk;
                 p->stat.def -= p->equipment.armour.data.equipment.def;
                 p->stat.acc -= p->equipment.armour.data.equipment.acc;
                 p->stat.agility -= p->equipment.armour.data.equipment.agility;
-
                 p->equipment.armour.data.equipment.isEquipped = false;
-                type("Unequipped %s\n", equipmentName[p->equipment.armour.data.equipment.eqNum]);
+                type("Unequipped %s\n", p->equipment.armour.name);
             } else {
                 type("Armour is not equipped\n");
             }
             break;
-        case 2:
+        case weapon:
             if (p->equipment.weapon.data.equipment.isEquipped) {
                 p->baseStats.hp -= p->equipment.weapon.data.equipment.hp;
                 p->baseStats.atk -= p->equipment.weapon.data.equipment.atk;
                 p->baseStats.def -= p->equipment.weapon.data.equipment.def;
                 p->baseStats.acc -= p->equipment.weapon.data.equipment.acc;
                 p->baseStats.agility -= p->equipment.weapon.data.equipment.agility;
-
                 p->stat.hp -= p->equipment.weapon.data.equipment.hp;
                 p->stat.atk -= p->equipment.weapon.data.equipment.atk;
                 p->stat.def -= p->equipment.weapon.data.equipment.def;
                 p->stat.acc -= p->equipment.weapon.data.equipment.acc;
                 p->stat.agility -= p->equipment.weapon.data.equipment.agility;
                 p->equipment.weapon.data.equipment.isEquipped = false;
-                type("Unequipped %s\n", equipmentName[p->equipment.weapon.data.equipment.eqNum]);
+                type("Unequipped %s\n", p->equipment.weapon.name);
             } else {
                 type("Weapon is not equipped\n");
             }
             break;
-        case 3:
+        case accessory:
             if (p->equipment.accessory.data.equipment.isEquipped) {
                 p->baseStats.hp -= p->equipment.accessory.data.equipment.hp;
                 p->baseStats.atk -= p->equipment.accessory.data.equipment.atk;
                 p->baseStats.def -= p->equipment.accessory.data.equipment.def;
                 p->baseStats.acc -= p->equipment.accessory.data.equipment.acc;
                 p->baseStats.agility -= p->equipment.accessory.data.equipment.agility;
-
                 p->stat.hp -= p->equipment.accessory.data.equipment.hp;
                 p->stat.atk -= p->equipment.accessory.data.equipment.atk;
                 p->stat.def -= p->equipment.accessory.data.equipment.def;
                 p->stat.acc -= p->equipment.accessory.data.equipment.acc;
                 p->stat.agility -= p->equipment.accessory.data.equipment.agility;
                 p->equipment.accessory.data.equipment.isEquipped = false;
-                type("Unequipped %s\n", equipmentName[p->equipment.accessory.data.equipment.eqNum]);
+                type("Unequipped %s\n", p->equipment.accessory.name);
             } else {
                 type("Accessory is not equipped\n");
             }
@@ -312,11 +566,11 @@ void equipItem(player* p, item* item) {
         type("Error: Invalid player or item\n");
         return;
     }
-    if (item->type != equipment) {
+    if (item->itemType != equipment) {
         type("Error: Item is not equipment\n");
         return;
     }
-    if(item->data.equipment.isEquipped) {
+    if (item->data.equipment.isEquipped) {
         type("Item is already equipped\n");
         return;
     }
@@ -331,7 +585,7 @@ void equipItem(player* p, item* item) {
             if (p->equipment.armour.data.equipment.isEquipped) {
                 unequipItem(p, armour);
             }
-            p->equipment.helmet = *item;
+            p->equipment.armour = *item;
             break;
         case weapon:
             if (p->equipment.weapon.data.equipment.isEquipped) {
@@ -350,13 +604,12 @@ void equipItem(player* p, item* item) {
             return;
     }
     item->data.equipment.isEquipped = true;
-    type("Equipped %s\n", equipmentName[item->data.equipment.eqNum]);
+    type("Equipped %s\n", item->name);
     p->baseStats.hp += item->data.equipment.hp;
     p->baseStats.atk += item->data.equipment.atk;
     p->baseStats.def += item->data.equipment.def;
     p->baseStats.acc += item->data.equipment.acc;
     p->baseStats.agility += item->data.equipment.agility;
-
     p->stat.hp += item->data.equipment.hp;
     p->stat.atk += item->data.equipment.atk;
     p->stat.def += item->data.equipment.def;
@@ -673,10 +926,10 @@ enemy* createEnemy(player* p, int enemyIndex) {
     return newEnemy;
 }
 
-player* createPlayer(int inventoryCapacity) {
+player* createPlayer() {
     player* p = malloc(sizeof(player));
     if (!p) return NULL;
-    p->inv = createInventory(inventoryCapacity);
+    p->inv = createInventory();
     if (!p->inv) {
         free(p);
         return NULL;
@@ -695,159 +948,6 @@ player* createPlayer(int inventoryCapacity) {
     p->equipment.accessory = (item){ .type=equipment, .data.equipment = { .isEquipped = false } };
 
     return p;
-}
-
-inventory* createInventory(int capacity) {
-    if (capacity > MAX_INVENTORY_SIZE) {
-        type("Capacity exceeds maximum inventory size (%d)\n", MAX_INVENTORY_SIZE);
-        return NULL;
-    }
-    inventory* inv = malloc(sizeof(inventory));
-    if (!inv) return NULL;
-    inv->capacity = capacity;
-    inv->currentSize = 0;
-    for (int i = 0; i < MAX_INVENTORY_SIZE; i++) {
-        inv->items[i] = NULL;
-    }
-    return inv;
-}
-
-void addItemToInventory(const item* newItem, inventory* inventory) {
-    if (!inventory || !newItem) {
-        type("Error: Invalid item or null pointer\n");
-        return;
-    }
-    if (inventory->currentSize >= inventory->capacity) {
-        type("Inventory is full\n");
-        return;
-    }
-    item* item = malloc(sizeof(item));
-    if (!item) {
-        type("Error: Failed to allocate item\n");
-        return;
-    }
-    memset(item, 0, sizeof(item));
-    item->type = newItem->type;
-
-    switch (item->type) {
-        case consumable:
-            if (!newItem->data.consumable.name) {
-                free(item);
-                type("Error: Null consumable name\n");
-                return;
-            }
-            item->data.consumable.name = strdup(newItem->data.consumable.name);
-            if (!item->data.consumable.name) {
-                free(item);
-                type("Error: Failed to allocate consumable name\n");
-                return;
-            }
-            item->data.consumable.amount = newItem->data.consumable.amount;
-            item->data.consumable.effect = strdup(newItem->data.consumable.effect ? newItem->data.consumable.effect : "");
-            if (!item->data.consumable.effect) {
-                free(item->data.consumable.name);
-                free(item);
-                type("Error: Failed to allocate consumable effect\n");
-                return;
-            }
-            break;
-        case equipment:
-            if (newItem->data.equipment.eqNum < 0 || newItem->data.equipment.eqNum >= sizeof(equipmentName)/sizeof(equipmentName[0])) {
-                free(item);
-                type("Error: Invalid equipment number\n");
-                return;
-            }
-            item->data.equipment.eqNum = newItem->data.equipment.eqNum;
-            item->data.equipment.lvl = newItem->data.equipment.lvl;
-            item->data.equipment.durability = newItem->data.equipment.durability;
-            item->data.equipment.type = newItem->data.equipment.type;
-            if (!item->data.equipment.type) {
-                free(item);
-                type("Error: Failed to allocate equipment type\n");
-                return;
-            }
-            item->data.equipment.hp = newItem->data.equipment.hp;
-            item->data.equipment.atk = newItem->data.equipment.atk;
-            item->data.equipment.def = newItem->data.equipment.def;
-            item->data.equipment.acc = newItem->data.equipment.acc;
-            item->data.equipment.agility = newItem->data.equipment.agility;
-            item->data.equipment.isEquipped = newItem->data.equipment.isEquipped;
-            break;
-        case keyItem:
-            if (!newItem->data.keyItem.name) {
-                free(item);
-                type("Error: Null keyItem name\n");
-                return;
-            }
-            item->data.keyItem.name = strdup(newItem->data.keyItem.name);
-            if (!item->data.keyItem.name) {
-                free(item);
-                type("Error: Failed to allocate keyItem name\n");
-                return;
-            }
-            break;
-        case ingredient:
-            if (!newItem->data.ingredient.name) {
-                free(item);
-                type("Error: Null ingredient name\n");
-                return;
-            }
-            item->data.ingredient.name = strdup(newItem->data.ingredient.name);
-            if (!item->data.ingredient.name) {
-                free(item);
-                type("Error: Failed to allocate ingredient name\n");
-                return;
-            }
-            item->data.ingredient.amount = newItem->data.ingredient.amount;
-            break;
-    }
-
-    inventory->items[inventory->currentSize] = item;
-    inventory->currentSize++;
-}
-
-void removeItemFromInventory(char* itemName, inventory* inventory) {
-    if (!inventory || !itemName) {
-        type("Error: Null inventory or item name\n");
-        return;
-    }
-    if (inventory->currentSize == 0) {
-        type("Inventory is empty\n");
-        return;
-    }
-    for (int i = 0; i < inventory->currentSize; i++) {
-        item* it = inventory->items[i];
-        if (!it) continue;
-        char* name = (it->type == consumable) ? it->data.consumable.name :
-                     (it->type == equipment) ? equipmentName[it->data.equipment.eqNum] :
-                     (it->type == keyItem) ? it->data.keyItem.name :
-                     it->data.ingredient.name;
-        if (name && strcmp(name, itemName) == 0) {
-            switch (it->type) {
-                case consumable:
-                    free(it->data.consumable.name);
-                    free(it->data.consumable.effect);
-                    break;
-                case equipment:
-                    break;
-                case keyItem:
-                    free(it->data.keyItem.name);
-                    break;
-                case ingredient:
-                    free(it->data.ingredient.name);
-                    break;
-            }
-            free(it);
-            for (int j = i; j < inventory->currentSize - 1; j++) {
-                inventory->items[j] = inventory->items[j + 1];
-            }
-            inventory->items[inventory->currentSize - 1] = NULL;
-            inventory->currentSize--;
-            type("Removed %s from inventory\n", itemName);
-            return;
-        }
-    }
-    type("Item not in inventory\n");
 }
 
 scene* createScene(int numChoices, char* description, char** choices, bool* choiceConditions, int* choiceIds, scene** nextScenePerChoice, int sceneNo) {
@@ -897,13 +997,13 @@ scene* processChoice(scene* currentScene, player* p, int choiceIndex) {
     switch (choiceId) {
         case 101:
             if (!p->gameTriggers[hasAxe]) {
-                addItemToInventory(&allEquipment[axe], p->inv);
+                addItem(p->inv, equipments[0]);
                 p->gameTriggers[hasAxe] = true;
             }
             return currentScene->nextScenePerChoice[choiceNumber - 1];
         case 102:
             if (!p->gameTriggers[hasKey1]) {
-                addItemToInventory(&allKeyItem[key1], p->inv);
+                addItem(p->inv, keyItems[0]);
                 p->gameTriggers[hasKey1] = true;
             }
             return currentScene->nextScenePerChoice[choiceNumber - 1];
@@ -967,117 +1067,6 @@ void displayScene(scene* currentScene, player* p) {
     type("%s", temp);
 }
 
-void displayInventory(player* p) {
-    if (!p || !p->inv) {
-        type("No inventory to display.\n");
-        return;
-    }
-    if (p->inv->currentSize == 0) {
-        type("Inventory is empty.\n");
-        return;
-    }
-    while(true)
-    {
-        type("Your Inventory:\n1. Equipment\n2. Key Items\n3. Consumables\n4. Ingredients\n5. Exit Inventory\n");
-        char input[10];
-        if (fgets(input, sizeof(input), stdin) == NULL) {
-            type("Error reading input.\n");
-            return;
-        }
-        input[strcspn(input, "\n")] = '\0';
-        int choice = atoi(input);
-        if (choice < 1 || choice > 5) {
-            type("Invalid choice. Please enter 1-5.\n");
-            continue;
-        }
-
-        bool hasItems = false;
-        switch (choice) {
-            case 1:
-                type("Equipment:\n");
-                for (int i = 0; i < p->inv->currentSize; i++) {
-                    if (p->inv->items[i] && p->inv->items[i]->type == equipment) {
-                        hasItems = true;
-                        const char* name = equipmentName[p->inv->items[i]->data.equipment.eqNum];
-                        type("%d. %s (Lvl: %d, Durability: %d, HP: %d, Atk: %d, Def: %d, Acc: %d, Agility: %d)\n",
-                            i + 1, name,
-                            p->inv->items[i]->data.equipment.lvl,
-                            p->inv->items[i]->data.equipment.durability,
-                            p->inv->items[i]->data.equipment.hp,
-                            p->inv->items[i]->data.equipment.atk,
-                            p->inv->items[i]->data.equipment.def,
-                            p->inv->items[i]->data.equipment.acc,
-                            p->inv->items[i]->data.equipment.agility);
-                    }
-                }
-                if (!hasItems) { type("No equipment found.\n"); break; }
-                type("Do you want to equip an item? (y/n)\n");
-                char equipChoice[10];
-                if (fgets(equipChoice, sizeof(equipChoice), stdin) == NULL) {
-                    type("Error reading input.\n");
-                    return;
-                }
-                equipChoice[strcspn(equipChoice, "\n")] = '\0';
-                if (strcmp(equipChoice, "y") == 0 || strcmp(equipChoice, "Y") == 0) {
-                    type("Enter the number of the item to equip:\n");
-                    char equipInput[10];
-                    if (fgets(equipInput, sizeof(equipInput), stdin) == NULL) {
-                        type("Error reading input.\n");
-                        return;
-                    }
-                    equipInput[strcspn(equipInput, "\n")] = '\0';
-                    int equipIndex = atoi(equipInput) - 1;
-                    if (equipIndex < 0 || equipIndex >= p->inv->currentSize || !p->inv->items[equipIndex]) {
-                        type("Invalid item number.\n");
-                    } else {
-                        equipItem(p, p->inv->items[equipIndex]);
-                    }
-                }
-            case 2:
-                type("Key Items:\n");
-                for (int i = 0; i < p->inv->currentSize; i++) {
-                    if (p->inv->items[i] && p->inv->items[i]->type == keyItem) {
-                        hasItems = true;
-                        const char* name = p->inv->items[i]->data.keyItem.name ? p->inv->items[i]->data.keyItem.name : "Unknown";
-                        type("%d. %s\n", i + 1, name);
-                    }
-                }
-                if (!hasItems) type("No key items found.\n");
-                break;
-            case 3:
-                type("Consumables:\n");
-                for (int i = 0; i < p->inv->currentSize; i++) {
-                    if (p->inv->items[i] && p->inv->items[i]->type == consumable) {
-                        hasItems = true;
-                        const char* name = p->inv->items[i]->data.consumable.name ? p->inv->items[i]->data.consumable.name : "Unknown";
-                        const char* effect = p->inv->items[i]->data.consumable.effect ? p->inv->items[i]->data.consumable.effect : "None";
-                        type("%d. %s (Amount: %d, Effect: %s)\n",
-                            i + 1, name,
-                            p->inv->items[i]->data.consumable.amount,
-                            effect);
-                    }
-                }
-                if (!hasItems) type("No consumables found.\n");
-                break;
-            case 4:
-                type("Ingredients:\n");
-                for (int i = 0; i < p->inv->currentSize; i++) {
-                    if (p->inv->items[i] && p->inv->items[i]->type == ingredient) {
-                        hasItems = true;
-                        const char* name = p->inv->items[i]->data.ingredient.name ? p->inv->items[i]->data.ingredient.name : "Unknown";
-                        type("%d. %s (Amount: %d)\n",
-                            i + 1, name,
-                            p->inv->items[i]->data.ingredient.amount);
-                    }
-                }
-                if (!hasItems) type("No ingredients found.\n");
-                break;
-            case 5:
-                return; // Exit inventory
-        }
-    }
-}
-
 void updateSceneConditions(scene* currentScene, player* p) {
     if (!currentScene || !p) return;
     for (int i = 0; i < currentScene->numChoices; i++) {
@@ -1129,39 +1118,7 @@ void freeScene(scene* s) {
 void freePlayer(player* p) {
     if (!p) return;
     if (p->inv) {
-        for (int i = 0; i < p->inv->currentSize; i++) {
-            if (p->inv->items[i]) {
-                switch (p->inv->items[i]->type) {
-                    case consumable:
-                        if (p->inv->items[i]->data.consumable.effect) {
-                            free(p->inv->items[i]->data.consumable.effect);
-                            p->inv->items[i]->data.consumable.effect = NULL;
-                        }
-                        if (p->inv->items[i]->data.consumable.name) {
-                            free(p->inv->items[i]->data.consumable.name);
-                            p->inv->items[i]->data.consumable.name = NULL;
-                        }
-                        break;
-                    case equipment:
-                        break;
-                    case keyItem:
-                        if (p->inv->items[i]->data.keyItem.name) {
-                            free(p->inv->items[i]->data.keyItem.name);
-                            p->inv->items[i]->data.keyItem.name = NULL;
-                        }
-                        break;
-                    case ingredient:
-                        if (p->inv->items[i]->data.ingredient.name) {
-                            free(p->inv->items[i]->data.ingredient.name);
-                            p->inv->items[i]->data.ingredient.name = NULL;
-                        }
-                        break;
-                }
-                free(p->inv->items[i]);
-                p->inv->items[i] = NULL;
-            }
-        }
-        free(p->inv);
+        freeInventory(p->inv);
         p->inv = NULL;
     }
     free(p);
@@ -1254,7 +1211,7 @@ int main() {
                 continue;
             }
             if (strcmp(input, "i") == 0) {
-                displayInventory(p);
+                displayInventory(p->inv, p);
                 continue;
             } else if (strcmp(input, "p") == 0) {
                 type("Your Level: %d\n", p->lvl);
