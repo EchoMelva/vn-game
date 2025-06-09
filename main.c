@@ -54,7 +54,7 @@ typedef struct {
     char* name;
     int itemType;
     union {
-        struct { char* description; int amount; char* effect; } consumable;
+        struct { char* description; int amount; char* effect; int effectAmount; } consumable;
         struct { int type; int hp, def, atk, agility, acc; bool isEquipped; } equipment;
         struct { char* description; } keyItem;
         struct { int amount; } ingredient;
@@ -89,6 +89,7 @@ typedef struct {
     int lvl;
     int xp;
     int xen;
+    int baseXen;
     stats stat;
     stats baseStats;
     struct {
@@ -161,8 +162,12 @@ typedef struct {
 
 // Item arrays
 item consumables[] = {
-    {"Health Potion", consumable, {.consumable = {"Restores 50 HP", 1, "Healing"}}},
-    {"Mana Potion", consumable, {.consumable = {"Restores 30 MP", 1, "Mana Recovery"}}}
+    {"Health Potion", consumable, {.consumable = {"Restores 50 HP", 1, "hpRecovery", 50}}},
+    {"Mana Potion", consumable, {.consumable = {"Restores 30 xen", 1, "xenRecovery", 30}}},
+    {"Poison Cure", consumable, {.consumable = {"Cures poison", 1, "curePoison", 0}}},
+    {"Paralysis Cure", consumable, {.consumable = {"Cures paralysis", 1, "cureParalysis", 0}}},
+    {"Burn Cure", consumable, {.consumable = {"Cures burn", 1, "cureBurn", 0}}},
+    {"Elixir", consumable, {.consumable = {"Restores all HP and Xen", 1, "fullRecovery", 0}}}
 };
 item equipments[] = {
     {"Rusty Axe", equipment, {.equipment = {weapon, 0, 0, 10, 0, 100, false}}},
@@ -215,6 +220,8 @@ void type(const char* format, ...);
 void lvlUp(player* p);
 void equipItem(player* p, item* item);
 void unequipItem(player* p, int equipmentType);
+void useItem(player* p, item* item);
+void useItemPanel(player* p, inventory* inv);
 
 // Function implementations
 inventory* createInventory() {
@@ -227,6 +234,7 @@ inventory* createInventory() {
             inv->items[i].data.consumable.description = NULL;
             inv->items[i].data.consumable.effect = NULL;
             inv->items[i].data.consumable.amount = 0;
+            inv->items[i].data.consumable.effectAmount = 0;
         }
     }
     return inv;
@@ -268,6 +276,7 @@ void addItem(inventory* inv, item newItem) {
                 dest->data.consumable.description = strdup(newItem.data.consumable.description ? newItem.data.consumable.description : "");
                 dest->data.consumable.amount = newItem.data.consumable.amount;
                 dest->data.consumable.effect = strdup(newItem.data.consumable.effect ? newItem.data.consumable.effect : "");
+                dest->data.consumable.effectAmount = newItem.data.consumable.effectAmount;
                 if (!dest->data.consumable.description || !dest->data.consumable.effect) {
                     free(dest->name);
                     free(dest->data.consumable.description);
@@ -296,6 +305,96 @@ void addItem(inventory* inv, item newItem) {
         type("Inventory is full!\n");
     }
 }
+
+void useItem(player* p, item* item) {
+    if (!p || !item->name) {
+        type("Error: Invalid player or item name\n");
+        return;
+    }
+    if (item->itemType != consumable) {
+        type("Error: Item is not consumable\n");
+        return;
+    }
+    if (item->data.consumable.amount <= 0) {
+        type("You have no %s left to use.\n", item->name);
+        return;
+    }
+    
+    if (strcmp(item->data.consumable.effect, "hpRecovery") == 0) {
+        p->stat.hp += item->data.consumable.effectAmount;
+        int healedAmount = (p->stat.hp > p->baseStats.hp) ? (p->baseStats.hp - (p->stat.hp - item->data.consumable.effectAmount)) : item->data.consumable.effectAmount; 
+        if (p->stat.hp > p->baseStats.hp) p->stat.hp = p->baseStats.hp;
+        type("You used %s and restored %d HP!\n", item->name, healedAmount);
+    } 
+    else if (strcmp(item->data.consumable.effect, "xenRecovery") == 0) {
+        p->xen += item->data.consumable.effectAmount;
+        int recoveredAmount = (p->xen > p->baseXen) ? (p->baseXen - (p->xen - item->data.consumable.effectAmount)) : item->data.consumable.effectAmount;
+        if (p->xen > p->baseXen) p->xen = p->baseXen;
+        type("You used %s and restored %d Xen!\n", item->name, recoveredAmount);
+    } 
+    else if (strcmp(item->data.consumable.effect, "curePoison") == 0) {
+        if (p->stat.status.isPoisoned) {
+            p->stat.status.isPoisoned = false;
+            type("You used %s and cured your poison!\n", item->name);
+        } else {
+            type("You are not poisoned.\n");
+        }
+    } else if (strcmp(item->data.consumable.effect, "cureParalysis") == 0) {
+        if (p->stat.status.isParalysed) {
+            p->stat.status.isParalysed = false;
+            type("You used %s and cured your paralysis!\n", item->name);
+        } else {
+            type("You are not paralysed.\n");
+        }
+    } 
+    else if (strcmp(item->data.consumable.effect, "cureBurn") == 0) {
+        if (p->stat.status.isBurning) {
+            p->stat.status.isBurning = false;
+            type("You used %s and cured your burn!\n", item->name);
+        } else {
+            type("You are not burning.\n");
+        }
+    } 
+    else if (strcmp(item->data.consumable.effect, "fullRecovery") == 0) {
+        p->stat.hp = p->baseStats.hp;
+        p->xen = p->baseXen; 
+        type("You used %s and restored all your HP and Xen!\n", item->name);
+    }
+    else {
+        type("Unknown item effect: %s\n", item->data.consumable.effect);
+        return;
+    }
+    removeItemFromInventory(item->name, p->inv);
+}
+
+void useItemPanel(player* p, inventory* inv) {
+    if (!p || !inv) {
+        type("Error: Null player or inventory\n");
+        return;
+    }
+    if (inv->itemCount == 0) {
+        type("Inventory is empty.\n");
+        return;
+    }
+    for (int i = 0; i< inv->itemCount; i++) {
+        if (inv->items[i].itemType == consumable) {
+            type("%d. %s (Amount: %d, Description: %s, Effect: %s)\n", 
+                 i + 1, inv->items[i].name, 
+                 inv->items[i].data.consumable.amount, 
+                 inv->items[i].data.consumable.description, 
+                 inv->items[i].data.consumable.effect);
+        }
+    }
+    type("Enter the number of the item you want to use (or 0 to exit):\n");
+    int i  = -1;
+    while (i < 0 || i > inv->itemCount) {scanf(" %d", &i); if(i < 0 || i > inv->itemCount) type("Invalid choice. Please enter a number between 1 and %d or 0 to exit.\n", inv->itemCount);}
+    if (i == 0) {
+        return;
+    }
+    useItem(p, &inv->items[i - 1]);
+    return;
+}
+
 void removeItemFromInventory(char* itemName, inventory* inv) {
     if (!inv || !itemName) {
         type("Error: Null inventory or item name\n");
@@ -370,26 +469,60 @@ void displayInventory(inventory* inv, player* p) {
         bool hasItems = false;
         switch (choice) {
             case 1:
+                int consumableNum = 0;
                 type("Consumables:\n");
                 for (int i = 0; i < inv->itemCount; i++) {
                     if (inv->items[i].itemType == consumable) {
                         hasItems = true;
                         type("%d. %s (Amount: %d, Description: %s, Effect: %s)\n",
-                             i + 1, inv->items[i].name,
+                             consumableNum + 1, inv->items[i].name,
                              inv->items[i].data.consumable.amount,
                              inv->items[i].data.consumable.description,
                              inv->items[i].data.consumable.effect);
+                        consumableNum++;
                     }
                 }
-                if (!hasItems) type("No consumables.\n");
+                if (!hasItems) {type("No consumables.\n"); break;}
+                type("Do you want to use an item? (y/n)\n");
+                char useChoice[10];
+                if (fgets(useChoice, sizeof(useChoice), stdin) == NULL) {
+                    type("Error reading input.\n");
+                    return;
+                }
+                useChoice[strcspn(useChoice, "\n")] = '\0';
+                if (strcmp(useChoice, "y") == 0 || strcmp(useChoice, "Y") == 0) {
+                    type("Enter the number of the item to use:\n");
+                    char useInput[10];
+                    if (fgets(useInput, sizeof(useInput), stdin) == NULL) {
+                        type("Error reading input.\n");
+                        return;
+                    }
+                    useInput[strcspn(useInput, "\n")] = '\0';
+                    int useIndex = atoi(useInput) - 1;
+                    if (useIndex < 0 || useIndex >= consumableNum) {
+                        type("Invalid item number.\n");
+                    } else {
+                        consumableNum = 0; 
+                        for(int i = 0; i < inv->itemCount; i++) {
+                            if (inv->items[i].itemType == consumable) {
+                                consumableNum++;
+                                if (consumableNum == useIndex + 1) {
+                                    useItem(p, &inv->items[i]);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
                 break;
             case 2:
+                int equipmentNum = 0;
                 type("Equipment:\n");
                 for (int i = 0; i < inv->itemCount; i++) {
                     if (inv->items[i].itemType == equipment) {
                         hasItems = true;
                         type("%d. %s (HP: %d, DEF: %d, ATK: %d, Agility: %d, ACC: %d, Equipped: %s)\n",
-                             i + 1, inv->items[i].name,
+                             equipmentNum + 1, inv->items[i].name,
                              inv->items[i].data.equipment.hp,
                              inv->items[i].data.equipment.def,
                              inv->items[i].data.equipment.atk,
@@ -397,6 +530,7 @@ void displayInventory(inventory* inv, player* p) {
                              inv->items[i].data.equipment.acc,
                              inv->items[i].data.equipment.isEquipped ? "Yes" : "No");
                     }
+                    equipmentNum++;
                 }
                 if (!hasItems) {
                     type("No equipment.\n");
@@ -418,33 +552,47 @@ void displayInventory(inventory* inv, player* p) {
                     }
                     equipInput[strcspn(equipInput, "\n")] = '\0';
                     int equipIndex = atoi(equipInput) - 1;
-                    if (equipIndex < 0 || equipIndex >= inv->itemCount || inv->items[equipIndex].itemType != equipment) {
+                    if (equipIndex < 0 || equipIndex >= equipmentNum) {
                         type("Invalid item number or not equipment.\n");
                     } else {
-                        equipItem(p, &inv->items[equipIndex]);
+                        equipmentNum = 0;
+                        for (int i = 0; i < inv->itemCount; i++) {
+                            if (inv->items[i].itemType == equipment) {
+                                equipmentNum++;
+                                if (equipmentNum == equipIndex + 1) {
+                                    equipItem(p, &inv->items[i]);
+                                    type("Equipped %s.\n", inv->items[i].name);
+                                    break;
+                                }
+                            }
+                        }
                     }
                 }
                 break;
             case 3:
+                int keyItemNum = 0;
                 type("Key Items:\n");
                 for (int i = 0; i < inv->itemCount; i++) {
                     if (inv->items[i].itemType == keyItem) {
                         hasItems = true;
                         type("%d. %s (Description: %s)\n",
-                             i + 1, inv->items[i].name,
+                             keyItemNum + 1, inv->items[i].name,
                              inv->items[i].data.keyItem.description);
+                        keyItemNum++;
                     }
                 }
                 if (!hasItems) type("No key items.\n");
                 break;
             case 4:
+                int ingredientNum = 0;
                 type("Ingredients:\n");
                 for (int i = 0; i < inv->itemCount; i++) {
                     if (inv->items[i].itemType == ingredient) {
                         hasItems = true;
                         type("%d. %s (Amount: %d)\n",
-                             i + 1, inv->items[i].name,
+                             ingredientNum + 1, inv->items[i].name,
                              inv->items[i].data.ingredient.amount);
+                        ingredientNum++;
                     }
                 }
                 if (!hasItems) type("No ingredients.\n");
@@ -700,7 +848,7 @@ void init_combat(player* p, enemy* e) {
     int prsCounter = 0;
     bool isHit;
     while (p->stat.hp > 0 && e->stat.hp > 0) {
-        type("Your HP: %d\nXen: %d\n%s's HP: %d\nWhat do you do?\n1. Attack\n2. Run Away\n3. Pray\n4. Chant\n", p->stat.hp, p->xen, e->name, e->stat.hp);
+        type("Your HP: %d\nXen: %d\n%s's HP: %d\nWhat do you do?\n1. Attack\n2. Run Away\n3. Pray\n4. Chant\n5. Use Item", p->stat.hp, p->xen, e->name, e->stat.hp);
         if (scanf("%d", &choice) != 1) {
             type("Invalid input. Please enter a number.\n");
             while (getchar() != '\n');
@@ -838,6 +986,9 @@ void init_combat(player* p, enemy* e) {
                 }
             }
             
+        }
+        else if (choice == 5) { // Use Item
+            useItemPanel(p, p->inv);
         }
     
         else {
@@ -995,6 +1146,7 @@ player* createPlayer() {
     p->lvl = 1;
     p->xp = 0;
     p->xen = 30;
+    p->baseXen = 30;
     p->baseStats = (stats){200, 20, 30, 100, 20, (status){false, false, false, false}};
     p->stat = (stats){200, 20, 30, 100, 20, (status){false, false, false, false}};
     p->equipment.helmet = (item){ .itemType=equipment, .data.equipment = { .isEquipped = false } };
@@ -1070,6 +1222,11 @@ scene* processChoice(scene* currentScene, player* p, int choiceIndex) {
                 type("Need Key1 to unlock gate.\n");
                 return currentScene;
             }
+        case 104:
+            type("You open the chest and find some xen potions.\n");
+            addItem(p->inv, consumables[1]);
+            currentScene->choiceConditions[3] = false; // Disable this choice after using it
+            return currentScene->nextScenePerChoice[choiceNumber - 1];
         case 201:
             if (p->gameTriggers[hasAxe]) {
                 type("Door chopped with Axe!\n");
@@ -1151,7 +1308,6 @@ void updateSceneConditions(scene* currentScene, player* p) {
                 currentScene->choiceConditions[i] = p->gameTriggers[cyclopsKilled];
                 break;
             default:
-                currentScene->choiceConditions[i] = true;
                 break;
         }
     }
@@ -1216,9 +1372,9 @@ int main() {
     scene* scenes[numScenes];
     scene** nextScenes[numScenes];
 
-    char* choices1[] = { "Pick up axe", "Pick up key1", "Unlock gate", NULL };
-    bool conditions1[] = { true, true, true };
-    scene* nextScenes1[3] = { NULL, NULL, NULL };
+    char* choices1[] = { "Pick up axe", "Pick up key1", "Unlock gate", "Open Chest", NULL };
+    bool conditions1[] = { true, true, true, true };
+    scene* nextScenes1[4] = { NULL, NULL, NULL, NULL };
 
     char* choices2[] = { "Chop door", "Go back to dark room", "Fight the enemy", NULL };
     bool conditions2[] = { true, true, true };
@@ -1228,7 +1384,7 @@ int main() {
     bool conditions3[] = { true, true, true };
     scene* nextScenes3[3] = { NULL, NULL, NULL };
 
-    scenes[0] = createScene(3, "A dark room with an axe and a gate.", choices1, conditions1, NULL, nextScenes1, 1);
+    scenes[0] = createScene(4, "A dark room with an axe, a chest and a gate.", choices1, conditions1, NULL, nextScenes1, 1);
     scenes[1] = createScene(3, "A room with a wooden door and an enemy lurking.", choices2, conditions2, NULL, nextScenes2, 2);
     scenes[2] = createScene(3, "There is an angry Cyclops in the room", choices3, conditions3, NULL, nextScenes3, 3);
     for (int i = 0; i < numScenes; i++) {
@@ -1246,6 +1402,7 @@ int main() {
     nextScenes1[0] = scenes[0];
     nextScenes1[1] = scenes[0];
     nextScenes1[2] = scenes[1];
+    nextScenes1[3] = scenes[0];
 
     nextScenes2[0] = scenes[2];
     nextScenes2[1] = scenes[0];
