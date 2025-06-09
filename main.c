@@ -155,6 +155,8 @@ typedef struct {
     int lvl;
     char* type;
     stats stat;
+    inventory drops;
+    int dropRate[inventoryCapacity];
 } enemy;
 
 // Item arrays
@@ -167,8 +169,7 @@ item equipments[] = {
     {"Leather Armor", equipment, {.equipment = {armour, 5, 3, 0, 0, 0, false}}}
 };
 item keyItems[] = {
-    {"Key1", keyItem, {.keyItem = {"A key to unlock the gate."}}},
-    {"Treasure Map", keyItem, {.keyItem = {"A map leading to hidden treasure."}}}
+    {"Key1", keyItem, {.keyItem = {"A key to unlock the gate."}}}
 };
 
 enemy allEnemy[] = {
@@ -176,19 +177,22 @@ enemy allEnemy[] = {
         "slime", 50,
         { {"blob attack", 20, 100, 1, "NULL"}, {"electrify", 10, 70, 1, "prs"}, {"acid throw", 10, 70, 1, "psn"}, {"slimy touch", 10, 70, 0, "brn"} },
         1, "normal",
-        { 25, 15, 20, 100, 20, (status){ false, false, false, false } }
+        { 25, 15, 20, 100, 20, (status){ false, false, false, false } },
+        .drops = { {0},  0}, {0}
     },
     {
         "goblin", 70,
         { {"bite", 20, 100, 1, "NULL"}, {"spear jab", 30, 50, 1, "NULL"}, {"enrage", 0, 100, 1, "atkBuff"}, {"posion arrow", 20, 80, 0, "psn"} },
         1, "normal",
-        { 15, 15, 25, 100, 20, (status){ false, false, false, false } }
+        { 15, 15, 25, 100, 20, (status){ false, false, false, false } },
+        .drops = { {0},  0}, {0}
     },
     {
         "cyclops", 90,
         { {"club attack", 100, 10, 1, "NULL"}, {"body slam", 50, 30, 1, "NULL"}, {"enrage", 0, 100, 1, "atkBuff"}, {"laser eye", 0, 100, 0, "brn"} },
         1, "dark",
-        { 150, 15, 5, 100, 10, (status){ false, false, false, false } }
+        { 150, 15, 5, 100, 10, (status){ false, false, false, false } },
+        .drops = { {0},  0}, {0}
     }
 };
 
@@ -227,7 +231,6 @@ inventory* createInventory() {
     }
     return inv;
 }
-
 void addItem(inventory* inv, item newItem) {
     if (!inv || !newItem.name) {
         type("Error: Invalid inventory or item name\n");
@@ -239,7 +242,6 @@ void addItem(inventory* inv, item newItem) {
                 switch (inv->items[i].itemType) {
                     case consumable:
                         inv->items[i].data.consumable.amount += newItem.data.consumable.amount;
-                        type("Updated %s amount to %d.\n", inv->items[i].name, inv->items[i].data.consumable.amount);
                         return;
                     case equipment:
                         type("%s already exists as equipment.\n", inv->items[i].name);
@@ -254,44 +256,39 @@ void addItem(inventory* inv, item newItem) {
                 }
             }
         }
-        inv->items[inv->itemCount].name = strdup(newItem.name);
-        if (!inv->items[inv->itemCount].name) {
+        item* dest = &inv->items[inv->itemCount];
+        dest->name = strdup(newItem.name);
+        if (!dest->name) {
             type("Error: Failed to allocate item name\n");
             return;
         }
-        inv->items[inv->itemCount].itemType = newItem.itemType;
+        dest->itemType = newItem.itemType;
         switch (newItem.itemType) {
             case consumable:
-                inv->items[inv->itemCount].data.consumable.description = strdup(newItem.data.consumable.description ? newItem.data.consumable.description : "");
-                inv->items[inv->itemCount].data.consumable.amount = newItem.data.consumable.amount;
-                inv->items[inv->itemCount].data.consumable.effect = strdup(newItem.data.consumable.effect ? newItem.data.consumable.effect : "");
-                if (!inv->items[inv->itemCount].data.consumable.description || !inv->items[inv->itemCount].data.consumable.effect) {
-                    free(inv->items[inv->itemCount].name);
-                    free(inv->items[inv->itemCount].data.consumable.description);
-                    free(inv->items[inv->itemCount].data.consumable.effect);
+                dest->data.consumable.description = strdup(newItem.data.consumable.description ? newItem.data.consumable.description : "");
+                dest->data.consumable.amount = newItem.data.consumable.amount;
+                dest->data.consumable.effect = strdup(newItem.data.consumable.effect ? newItem.data.consumable.effect : "");
+                if (!dest->data.consumable.description || !dest->data.consumable.effect) {
+                    free(dest->name);
+                    free(dest->data.consumable.description);
+                    free(dest->data.consumable.effect);
                     type("Error: Failed to allocate consumable fields\n");
                     return;
                 }
                 break;
             case equipment:
-                inv->items[inv->itemCount].data.equipment.type = newItem.data.equipment.type;
-                inv->items[inv->itemCount].data.equipment.hp = newItem.data.equipment.hp;
-                inv->items[inv->itemCount].data.equipment.def = newItem.data.equipment.def;
-                inv->items[inv->itemCount].data.equipment.atk = newItem.data.equipment.atk;
-                inv->items[inv->itemCount].data.equipment.agility = newItem.data.equipment.agility;
-                inv->items[inv->itemCount].data.equipment.acc = newItem.data.equipment.acc;
-                inv->items[inv->itemCount].data.equipment.isEquipped = newItem.data.equipment.isEquipped;
+                dest->data.equipment = newItem.data.equipment; // Struct copy is safe
                 break;
             case keyItem:
-                inv->items[inv->itemCount].data.keyItem.description = strdup(newItem.data.keyItem.description ? newItem.data.keyItem.description : "");
-                if (!inv->items[inv->itemCount].data.keyItem.description) {
-                    free(inv->items[inv->itemCount].name);
+                dest->data.keyItem.description = strdup(newItem.data.keyItem.description ? newItem.data.keyItem.description : "");
+                if (!dest->data.keyItem.description) {
+                    free(dest->name);
                     type("Error: Failed to allocate key item description\n");
                     return;
                 }
                 break;
             case ingredient:
-                inv->items[inv->itemCount].data.ingredient.amount = newItem.data.ingredient.amount;
+                dest->data.ingredient.amount = newItem.data.ingredient.amount;
                 break;
         }
         inv->itemCount++;
@@ -299,7 +296,6 @@ void addItem(inventory* inv, item newItem) {
         type("Inventory is full!\n");
     }
 }
-
 void removeItemFromInventory(char* itemName, inventory* inv) {
     if (!inv || !itemName) {
         type("Error: Null inventory or item name\n");
@@ -311,25 +307,38 @@ void removeItemFromInventory(char* itemName, inventory* inv) {
     }
     for (int i = 0; i < inv->itemCount; i++) {
         if (strcmp(inv->items[i].name, itemName) == 0) {
-            free(inv->items[i].name);
             switch (inv->items[i].itemType) {
                 case consumable:
-                    free(inv->items[i].data.consumable.description);
-                    free(inv->items[i].data.consumable.effect);
+                    if(inv->items[i].data.consumable.amount > 1) {
+                        inv->items[i].data.consumable.amount--;
+                        return;
+                    } else {
+                        free(inv->items[i].name);
+                        free(inv->items[i].data.consumable.description);
+                        free(inv->items[i].data.consumable.effect);
+                    }
                     break;
                 case equipment:
+                    free(inv->items[i].name);
                     break;
                 case keyItem:
+                    free(inv->items[i].name);
                     free(inv->items[i].data.keyItem.description);
                     break;
                 case ingredient:
+                if(inv->items[i].data.ingredient.amount > 1) {
+                    inv->items[i].data.ingredient.amount--;
+                    return;
+                }
+                else {
+                    free(inv->items[i].name);
+                }
                     break;
             }
             for (int j = i; j < inv->itemCount - 1; j++) {
                 inv->items[j] = inv->items[j + 1];
             }
             inv->itemCount--;
-            type("Removed %s from inventory\n", itemName);
             return;
         }
     }
@@ -691,11 +700,7 @@ void init_combat(player* p, enemy* e) {
     int prsCounter = 0;
     bool isHit;
     while (p->stat.hp > 0 && e->stat.hp > 0) {
-        type("Your HP: %d\n", p->stat.hp);
-        ("Xen: %d  \n", p->xen);
-        type("%s's HP: %d\n", e->name, e->stat.hp);
-        type("What do you do?\n");
-        type("1. Attack\n2. Run Away\n3. Pray\n4. Chant\n");
+        type("Your HP: %d\nXen: %d\n%s's HP: %d\nWhat do you do?\n1. Attack\n2. Run Away\n3. Pray\n4. Chant\n", p->stat.hp, p->xen, e->name, e->stat.hp);
         if (scanf("%d", &choice) != 1) {
             type("Invalid input. Please enter a number.\n");
             while (getchar() != '\n');
@@ -727,113 +732,113 @@ void init_combat(player* p, enemy* e) {
 
         }
 
-else if (choice == 3) { // Pray
-    int prayerOutcome = rand() % 2; // Randomly picks 0 (Blessing) or 1 (Curse)
-    
-    switch (prayerOutcome) {
-        case 0: { // Blessings (50% chance)
-            int grace = rand() % 100;
+        else if (choice == 3) { // Pray
+            int prayerOutcome = rand() % 2; // Randomly picks 0 (Blessing) or 1 (Curse)
             
-            if (grace <= 40) { // 40% chance: Cure all status effects
-                p->stat.status.isBurning = false;
-                p->stat.status.isPoisoned = false;
-                p->stat.status.isParalysed = false;
-                type("The Divine Goddess cures your ailments!\n");
-            } 
-            else if (grace <= 60) { // 20% chance: Smite enemy (25% of their HP)
-                int smiteDmg = e->stat.hp / 2;  //yes much needed actually
-                e->stat.hp -= smiteDmg;
-                type("The Divine Goddess smites your foe for %d damage!\n", smiteDmg);
-            } 
-            else if (grace <= 80) { // 20% chance: Heal player (25% of max HP)
-                int healAmount = p->baseStats.hp / 4;
-                p->stat.hp += healAmount;
-                if (p->stat.hp > p->baseStats.hp) p->stat.hp = p->baseStats.hp;
-                type("The Divine Goddess heals you for %d HP!\n", healAmount);
-            } 
-            else { // 20% chance: Temporary ATK boost (+10)
-                p->stat.atk += 10;
-                type("The Divine Goddess blesses you with holy strength! (+10 ATK)\n");
+            switch (prayerOutcome) {
+                case 0: { // Blessings (50% chance)
+                    int grace = rand() % 100;
+                    
+                    if (grace <= 40) { // 40% chance: Cure all status effects
+                        p->stat.status.isBurning = false;
+                        p->stat.status.isPoisoned = false;
+                        p->stat.status.isParalysed = false;
+                        type("The Divine Goddess cures your ailments!\n");
+                    } 
+                    else if (grace <= 60) { // 20% chance: Smite enemy (25% of their HP)
+                        int smiteDmg = e->stat.hp / 2;  //yes much needed actually
+                        e->stat.hp -= smiteDmg;
+                        type("The Divine Goddess smites your foe for %d damage!\n", smiteDmg);
+                    } 
+                    else if (grace <= 80) { // 20% chance: Heal player (25% of max HP)
+                        int healAmount = p->baseStats.hp / 4;
+                        p->stat.hp += healAmount;
+                        if (p->stat.hp > p->baseStats.hp) p->stat.hp = p->baseStats.hp;
+                        type("The Divine Goddess heals you for %d HP!\n", healAmount);
+                    } 
+                    else { // 20% chance: Temporary ATK boost (+10)
+                        p->stat.atk += 10;
+                        type("The Divine Goddess blesses you with holy strength! (+10 ATK)\n");
+                    }
+                    break;
+                }
+                
+                case 1: { // Curse (50% chance)
+                    int jinx = rand() % 100;
+                    
+                    if (jinx <= 40) { // 40% chance: Burn player
+                        p->stat.status.isBurning = true;
+                        type("The Divine Goddess' holy flames are purifying you ! (You are now Burning)\n");
+                    } 
+                    else if (jinx <= 60) { // 20% chance: Lose 25% HP
+                        int punishDmg = p->baseStats.hp / 4;
+                        p->stat.hp -= punishDmg;
+                        type("The Divine Goddess punishes you for %d damage!\n", punishDmg);
+                    } 
+                    else if (jinx <= 80) { // 20% chance: Paralysis
+                        p->stat.status.isParalysed = true;
+                        type("The Divine Goddess demands your repentance!\n");
+                    } 
+                    else { // 20% chance: Both lose 25% HP
+                        int mutualDmg = p->baseStats.hp / 4;
+                        p->stat.hp -= mutualDmg;
+                        e->stat.hp -= mutualDmg;
+                        type("The Divine Goddess judges both of you! (-%d HP each)\n", mutualDmg);
+                    }
+                    break;
+                }
             }
-            break;
-        }
-        
-        case 1: { // Curse (50% chance)
-            int jinx = rand() % 100;
+        } 
+
+        else if (choice == 4) {   // Chant option
+            char input[100];
             
-            if (jinx <= 40) { // 40% chance: Burn player
-                p->stat.status.isBurning = true;
-                type("The Divine Goddess' holy flames are purifying you ! (You are now Burning)\n");
-            } 
-            else if (jinx <= 60) { // 20% chance: Lose 25% HP
-                int punishDmg = p->baseStats.hp / 4;
-                p->stat.hp -= punishDmg;
-                type("The Divine Goddess punishes you for %d damage!\n", punishDmg);
-            } 
-            else if (jinx <= 80) { // 20% chance: Paralysis
-                p->stat.status.isParalysed = true;
-                type("The Divine Goddess demands your repentance!\n");
-            } 
-            else { // 20% chance: Both lose 25% HP
-                int mutualDmg = p->baseStats.hp / 4;
-                p->stat.hp -= mutualDmg;
-                e->stat.hp -= mutualDmg;
-                type("The Divine Goddess judges both of you! (-%d HP each)\n", mutualDmg);
+            // Get player input
+            type("Enter chant: ");
+            getchar(); // Clear input buffer
+            fgets(input, sizeof(input), stdin);
+            input[strcspn(input, "\n")] = '\0'; // Remove newline
+
+            // Check against all spells
+            Spell *matched_spell = NULL;
+            for (int i = 0; i < sizeof(allSpells)/sizeof(allSpells[0]); i++) {
+                if (strcmp(input, allSpells[i].chant) == 0) {
+                    matched_spell = &allSpells[i];
+                    break;
+                }
             }
-            break;
-        }
-    }
-} 
 
-            else if (choice == 4) {   // Chant option
-    char input[100];
-    
-    // Get player input
-    type("Enter chant: ");
-    getchar(); // Clear input buffer
-    fgets(input, sizeof(input), stdin);
-    input[strcspn(input, "\n")] = '\0'; // Remove newline
+            if (!matched_spell) {
+                type("Spell Casting Failed!\n");
+                p->stat.hp -= 10;
+                type("You took 10 damage from magical backlash!\n");
+                // DON'T return here - let combat continue
+            }
+            else if (p->xen < matched_spell->xenreq) {
+                type("Spell Casting Failed! (Not enough Xen)\n");
+            }
+            else {
+                // Successful cast
+                p->xen -= matched_spell->xenreq;
+                int damage = matched_spell->basedamage + (5 * p->lvl);  // +5 DMG PER PLAYER'S LEVEL
+                e->stat.hp -= damage;
+                
+                type("%s was cast successfully! You did %d damage to the enemy.\n",
+                    matched_spell->name, damage);
+                type("Remaining Xen: %d \n", p->xen);
 
-    // Check against all spells
-    Spell *matched_spell = NULL;
-    for (int i = 0; i < sizeof(allSpells)/sizeof(allSpells[0]); i++) {
-        if (strcmp(input, allSpells[i].chant) == 0) {
-            matched_spell = &allSpells[i];
-            break;
+                // Apply debuffs
+                if (matched_spell->debuff.isBurning) {
+                    e->stat.status.isBurning = true;
+                    type("The enemy bursts into flames!\n");
+                }
+                if (matched_spell->debuff.isParalysed) {
+                    e->stat.status.isParalysed = true;
+                    type("The enemy is paralyzed!\n");
+                }
+            }
+            
         }
-    }
-
-    if (!matched_spell) {
-        type("Spell Casting Failed!\n");
-        p->stat.hp -= 10;
-        type("You took 10 damage from magical backlash!\n");
-        // DON'T return here - let combat continue
-    }
-    else if (p->xen < matched_spell->xenreq) {
-        type("Spell Casting Failed! (Not enough Xen)\n");
-    }
-    else {
-        // Successful cast
-        p->xen -= matched_spell->xenreq;
-        int damage = matched_spell->basedamage + (5 * p->lvl);  // +5 DMG PER PLAYER'S LEVEL
-        e->stat.hp -= damage;
-        
-        type("%s was cast successfully! You did %d damage to the enemy.\n",
-             matched_spell->name, damage);
-        type("Remaining Xen: %d \n", p->xen);
-
-        // Apply debuffs
-        if (matched_spell->debuff.isBurning) {
-            e->stat.status.isBurning = true;
-            type("The enemy bursts into flames!\n");
-        }
-        if (matched_spell->debuff.isParalysed) {
-            e->stat.status.isParalysed = true;
-            type("The enemy is paralyzed!\n");
-        }
-    }
-    
-}
     
         else {
 
@@ -881,9 +886,20 @@ else if (choice == 3) { // Pray
     if (p->stat.hp <= 0) {
         type("You died!\n");
         p->gameTriggers[isAlive] = false;
-    } else if (e->stat.hp <= 0) {
+    } 
+    else if (e->stat.hp <= 0) {
         type("You killed the %s!\n", e->name);
         xp = (e->xpSeed + e->xpSeed * sqrt(e->lvl / p->lvl)) * 2 * (1 - (p->lvl / MAX_LEVEL));
+        int i = 0;
+        while(i < e->drops.itemCount) {
+            if(rand() % 100 < e->dropRate[i]) {
+                addItem(p->inv, e->drops.items[i]);
+                type("It dropped %s!\n", e->drops.items[i].name);
+            } else {
+                type("It did not drop anything\n");
+            }
+            i++;
+        }
         p->xp += xp;
         type("You gained %d XP!\n", xp);
         p->stat.status.isPoisoned = false;
@@ -899,21 +915,68 @@ enemy* createEnemy(player* p, int enemyIndex) {
     if (enemyIndex == randomEnemy) enemyIndex = rand() % 2;
     enemy* newEnemy = malloc(sizeof(enemy));
     if (!newEnemy) return NULL;
-    *newEnemy = allEnemy[enemyIndex];
-    newEnemy->name = strdup(newEnemy->name);
-    newEnemy->type = strdup(newEnemy->type);
+
+    //Enemy Stats
+
+    newEnemy->name = strdup(allEnemy[enemyIndex].name);
+    newEnemy->type = strdup(allEnemy[enemyIndex].type);
     newEnemy->lvl = p->lvl + (rand() % 5) - 2;
     if (newEnemy->lvl < 1) newEnemy->lvl = 1;
-    newEnemy->stat.hp += newEnemy->lvl * 15;
-    newEnemy->stat.def += newEnemy->lvl * 2;
-    newEnemy->stat.atk += newEnemy->lvl * 3;
-    newEnemy->stat.agility += newEnemy->lvl * 3;
+    newEnemy->stat.hp = allEnemy[enemyIndex].stat.hp + newEnemy->lvl * 15;
+    newEnemy->stat.def = allEnemy[enemyIndex].stat.def + newEnemy->lvl * 2;
+    newEnemy->stat.atk = allEnemy[enemyIndex].stat.atk + newEnemy->lvl * 3;
+    newEnemy->stat.agility = allEnemy[enemyIndex].stat.agility + newEnemy->lvl * 3;
+    newEnemy->stat.acc = allEnemy[enemyIndex].stat.acc;
     newEnemy->stat.status = (status){ false, false, false, false };
+    newEnemy->xpSeed = allEnemy[enemyIndex].xpSeed;
+
+    //Enemy Moveset
+
     for (int i = 0; i < 4; i++) {
-        if (newEnemy->moveset[i].name) {
-            newEnemy->moveset[i].name = strdup(newEnemy->moveset[i].name);
-            newEnemy->moveset[i].debuff = strdup(newEnemy->moveset[i].debuff);
+        if (allEnemy[enemyIndex].moveset[i].name) {
+            newEnemy->moveset[i].name = strdup(allEnemy[enemyIndex].moveset[i].name);
+            newEnemy->moveset[i].dmg = allEnemy[enemyIndex].moveset[i].dmg;
+            newEnemy->moveset[i].acc = allEnemy[enemyIndex].moveset[i].acc;
+            newEnemy->moveset[i].lvlReq = allEnemy[enemyIndex].moveset[i].lvlReq;
+            newEnemy->moveset[i].debuff = strdup(allEnemy[enemyIndex].moveset[i].debuff);
         }
+    }
+
+    //Enemy Drops
+
+    inventory* tempInv = createInventory();
+    if (!tempInv) {
+        free(newEnemy->name);
+        free(newEnemy->type);
+        for (int i = 0; i < 4; i++) {
+            if (newEnemy->moveset[i].name) {
+                free(newEnemy->moveset[i].name);
+                free(newEnemy->moveset[i].debuff);
+            }
+        }
+        free(newEnemy);
+        return NULL;
+    }
+    newEnemy->drops = *tempInv;
+    free(tempInv);
+    if (enemyIndex == slime) {
+        addItem(&newEnemy->drops, consumables[0]);
+        addItem(&newEnemy->drops, consumables[1]);
+        newEnemy->dropRate[0] = 40;
+        newEnemy->dropRate[1] = 20;
+    }
+    else if (enemyIndex == goblin) {
+        addItem(&newEnemy->drops, consumables[0]);
+        addItem(&newEnemy->drops, consumables[1]);
+        newEnemy->dropRate[0] = 50;
+        newEnemy->dropRate[1] = 30;
+    } else if (enemyIndex == cyclops) {
+        addItem(&newEnemy->drops, equipments[1]);
+        addItem(&newEnemy->drops, consumables[0]);
+        addItem(&newEnemy->drops, consumables[1]);
+        newEnemy->dropRate[0] = 100;
+        newEnemy->dropRate[1] = 80;
+        newEnemy->dropRate[2] = 60;
     }
     return newEnemy;
 }
@@ -1124,13 +1187,29 @@ void freeEnemy(enemy* e) {
             free(e->moveset[i].name);
             free(e->moveset[i].debuff);
         }
+        if(&e->drops != NULL) {
+            for (int i = 0; i < e->drops.itemCount; i++) {
+                free(e->drops.items[i].name);
+                switch (e->drops.items[i].itemType) {
+                    case consumable:
+                        free(e->drops.items[i].data.consumable.description);
+                        free(e->drops.items[i].data.consumable.effect);
+                        break;
+                    case keyItem:
+                        free(e->drops.items[i].data.keyItem.description);
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
         free(e);
     }
 }
 
 int main() {
     srand(time(NULL));
-    player* p = createPlayer(3);
+    player* p = createPlayer();
     if (!p) return 1;
 
     const int numScenes = 3;
