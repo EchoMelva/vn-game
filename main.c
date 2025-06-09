@@ -163,7 +163,7 @@ typedef struct {
 // Item arrays
 item consumables[] = {
     {"Health Potion", consumable, {.consumable = {"Restores 50 HP", 1, "hpRecovery", 50}}},
-    {"Mana Potion", consumable, {.consumable = {"Restores 30 xen", 1, "xenRecovery", 30}}},
+    {"Xen Potion", consumable, {.consumable = {"Restores 30 xen", 1, "xenRecovery", 30}}},
     {"Poison Cure", consumable, {.consumable = {"Cures poison", 1, "curePoison", 0}}},
     {"Paralysis Cure", consumable, {.consumable = {"Cures paralysis", 1, "cureParalysis", 0}}},
     {"Burn Cure", consumable, {.consumable = {"Cures burn", 1, "cureBurn", 0}}},
