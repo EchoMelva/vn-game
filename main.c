@@ -766,6 +766,7 @@ void freeInventory(inventory* inv) {
 }
 
 void unequipItem(player* p, int equipmentType) {
+    char* name;
     if (!p) {
         type("Error: Invalid player\n");
         return;
@@ -777,6 +778,8 @@ void unequipItem(player* p, int equipmentType) {
     switch (equipmentType) {
         case helmet:
             if (p->equipment.helmet.data.equipment.isEquipped) {
+                name = p->equipment.helmet.name;
+                // Adjust base stats and current stats
                 p->baseStats.hp -= p->equipment.helmet.data.equipment.hp;
                 p->baseStats.atk -= p->equipment.helmet.data.equipment.atk;
                 p->baseStats.def -= p->equipment.helmet.data.equipment.def;
@@ -787,14 +790,30 @@ void unequipItem(player* p, int equipmentType) {
                 p->stat.def -= p->equipment.helmet.data.equipment.def;
                 p->stat.acc -= p->equipment.helmet.data.equipment.acc;
                 p->stat.agility -= p->equipment.helmet.data.equipment.agility;
+                // Mark the item as unequipped in the inventory
+                for (int i = 0; i < p->inv->itemCount; i++) {
+                    if (strcmp(p->inv->items[i].name, p->equipment.helmet.name) == 0) {
+                        p->inv->items[i].data.equipment.isEquipped = false;
+                        break;
+                    }
+                }
+                // Clear the helmet equipment
+                p->equipment.helmet.name = NULL;
+                p->equipment.helmet.data.equipment.hp = 0;
+                p->equipment.helmet.data.equipment.atk = 0;
+                p->equipment.helmet.data.equipment.def = 0;
+                p->equipment.helmet.data.equipment.acc = 0;
+                p->equipment.helmet.data.equipment.agility = 0;
                 p->equipment.helmet.data.equipment.isEquipped = false;
-                type("Unequipped %s\n", p->equipment.helmet.name);
+                type("Unequipped %s\n", name);
             } else {
                 type("Helmet is not equipped\n");
             }
             break;
         case armour:
             if (p->equipment.armour.data.equipment.isEquipped) {
+                name = p->equipment.armour.name;
+                // Adjust base stats and current stats
                 p->baseStats.hp -= p->equipment.armour.data.equipment.hp;
                 p->baseStats.atk -= p->equipment.armour.data.equipment.atk;
                 p->baseStats.def -= p->equipment.armour.data.equipment.def;
@@ -805,14 +824,31 @@ void unequipItem(player* p, int equipmentType) {
                 p->stat.def -= p->equipment.armour.data.equipment.def;
                 p->stat.acc -= p->equipment.armour.data.equipment.acc;
                 p->stat.agility -= p->equipment.armour.data.equipment.agility;
+                // Mark the item as unequipped in the inventory
+                for (int i = 0; i < p->inv->itemCount; i++) {
+                    if (strcmp(p->inv->items[i].name, p->equipment.armour.name) == 0) {
+                        p->inv->items[i].data.equipment.isEquipped = false;
+                        break;
+                    }
+                }
+                // Clear the armour equipment
+                p->equipment.armour.name = NULL;
+                p->equipment.armour.data.equipment.hp = 0;
+                p->equipment.armour.data.equipment.atk = 0;
+                p->equipment.armour.data.equipment.def = 0;
+                p->equipment.armour.data.equipment.acc = 0;
+                p->equipment.armour.data.equipment.agility = 0;
                 p->equipment.armour.data.equipment.isEquipped = false;
-                type("Unequipped %s\n", p->equipment.armour.name);
+                type("Unequipped %s\n", name);
+
             } else {
                 type("Armour is not equipped\n");
             }
             break;
         case weapon:
             if (p->equipment.weapon.data.equipment.isEquipped) {
+                name = p->equipment.weapon.name;
+                // Adjust base stats and current stats
                 p->baseStats.hp -= p->equipment.weapon.data.equipment.hp;
                 p->baseStats.atk -= p->equipment.weapon.data.equipment.atk;
                 p->baseStats.def -= p->equipment.weapon.data.equipment.def;
@@ -823,14 +859,30 @@ void unequipItem(player* p, int equipmentType) {
                 p->stat.def -= p->equipment.weapon.data.equipment.def;
                 p->stat.acc -= p->equipment.weapon.data.equipment.acc;
                 p->stat.agility -= p->equipment.weapon.data.equipment.agility;
+                // Mark the item as unequipped in the inventory
+                for (int i = 0; i < p->inv->itemCount; i++) {
+                    if (strcmp(p->inv->items[i].name, p->equipment.weapon.name) == 0) {
+                        p->inv->items[i].data.equipment.isEquipped = false;
+                        break;
+                    }
+                } 
+                // Clear the weapon equipment
+                p->equipment.weapon.name = NULL;
+                p->equipment.weapon.data.equipment.hp = 0;
+                p->equipment.weapon.data.equipment.atk = 0;
+                p->equipment.weapon.data.equipment.def = 0;
+                p->equipment.weapon.data.equipment.acc = 0;
+                p->equipment.weapon.data.equipment.agility = 0;
                 p->equipment.weapon.data.equipment.isEquipped = false;
-                type("Unequipped %s\n", p->equipment.weapon.name);
+                type("Unequipped %s\n", name);
             } else {
                 type("Weapon is not equipped\n");
             }
             break;
         case accessory:
             if (p->equipment.accessory.data.equipment.isEquipped) {
+                name = p->equipment.accessory.name;
+                // Adjust base stats and current stats
                 p->baseStats.hp -= p->equipment.accessory.data.equipment.hp;
                 p->baseStats.atk -= p->equipment.accessory.data.equipment.atk;
                 p->baseStats.def -= p->equipment.accessory.data.equipment.def;
@@ -841,8 +893,22 @@ void unequipItem(player* p, int equipmentType) {
                 p->stat.def -= p->equipment.accessory.data.equipment.def;
                 p->stat.acc -= p->equipment.accessory.data.equipment.acc;
                 p->stat.agility -= p->equipment.accessory.data.equipment.agility;
+                // Mark the item as unequipped in the inventory
+                for (int i = 0; i < p->inv->itemCount; i++) {
+                    if (strcmp(p->inv->items[i].name, p->equipment.accessory.name) == 0) {
+                        p->inv->items[i].data.equipment.isEquipped = false;
+                        break;
+                    }
+                }
+                // Clear the accessory equipment
+                p->equipment.accessory.name = NULL;
+                p->equipment.accessory.data.equipment.hp = 0;
+                p->equipment.accessory.data.equipment.atk = 0;
+                p->equipment.accessory.data.equipment.def = 0;
+                p->equipment.accessory.data.equipment.acc = 0;
+                p->equipment.accessory.data.equipment.agility = 0;
                 p->equipment.accessory.data.equipment.isEquipped = false;
-                type("Unequipped %s\n", p->equipment.accessory.name);
+                type("Unequipped %s\n", name);
             } else {
                 type("Accessory is not equipped\n");
             }
@@ -880,7 +946,8 @@ void equipItem(player* p, item* item) {
             if (p->equipment.weapon.data.equipment.isEquipped) {
                 unequipItem(p, weapon);
             }
-            p->equipment.weapon = *item;
+            p->equipment.weapon.name = strdup(item->name);
+            p->equipment.weapon.data.equipment = item->data.equipment; // Struct copy is safe
             break;
         case accessory:
             if (p->equipment.accessory.data.equipment.isEquipped) {
