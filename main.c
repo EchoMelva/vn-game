@@ -82,6 +82,149 @@ typedef struct {
     status status;
 } stats;
 
+typedef struct {
+    char* name;
+    int dmg;
+    int acc;
+    int lvlReq;
+    char* debuff;
+} move;
+
+typedef struct {
+    char* name;
+    int lvl;
+    int xp;
+    int xpbar;
+    char* type;
+    stats baseStats;
+    stats stat;
+    move moveset[4];
+} Summon;
+
+Summon allSummons[] = {
+    {
+        "Black Dragon", 
+        1, 0, 100, "fire",
+        {85, 10, 20, 100, 20, {false, false, false, false}},
+        {85, 10, 20, 100, 20, {false, false, false, false}},
+        {
+            {"Kindle", 30, 80, 1, "brn"},
+            {"Bash", 20, 95, 1, "NULL"},
+            {"Chomp", 15, 100, 1, "NULL"},
+            {"Pyro Breath", 40, 70, 1, "brn"}
+        }
+    },
+    { 
+        "Tenodera Mantis",
+        1, 0, 100, "poison",
+        {70, 15, 15, 100, 15, {false, false, false, false}},
+        {70, 15, 15, 100, 15, {false, false, false, false}},
+        {
+            {"Tro-kick", 25, 95, 1, "NULL"},
+            {"Chop", 20, 100, 1, "NULL"},
+            {"Slash", 35, 85, 1, "NULL"},
+            {"Toxic Spray", 0, 40, 1, "psn"}
+        }
+    },
+    {
+        "Fuilminata Raijin",
+        1, 0, 100, "lightning",
+        {75, 25, 10, 80, 10, {false, false, false, false}},
+        {75, 25, 10, 80, 10, {false, false, false, false}},
+        {
+            {"Bash", 20, 95, 1, "NULL"},
+            {"Jab", 40, 90, 1, "NULL"},
+            {"Thunder Clap", 50, 100, 1, "prs"},
+            {"Static Zap", 0, 50, 1, "prs"}
+        }
+    },
+    {
+        "Frost Wyrm",
+        1, 0, 100, "ice",
+        {80, 12, 18, 90, 18, {false, false, false, false}},
+        {80, 12, 18, 90, 18, {false, false, false, false}},
+        {
+            {"Ice Shard", 35, 85, 1, "frz"},
+            {"Frost Bite", 20, 95, 1, "NULL"},
+            {"Glacial Slam", 30, 90, 1, "NULL"},
+            {"Blizzard", 0, 50, 1, "frz"}
+        }
+    },
+    {
+        "Stone Golem",
+        1, 0, 100, "rock",
+        {90, 8, 25, 85, 10, {false, false, false, false}},
+        {90, 8, 25, 85, 10, {false, false, false, false}},
+        {
+            {"Rock Throw", 30, 90, 1, "NULL"},
+            {"Slam", 25, 95, 1, "NULL"},
+            {"Boulder Crush", 40, 80, 1, "NULL"},
+            {"Earthquake", 0, 60, 1, "prs"}
+        }
+    },
+    {
+        "Shadow Wraith",
+        1, 0, 100, "dark",
+        {65, 20, 10, 95, 25, {false, false, false, false}},
+        {65, 20, 10, 95, 25, {false, false, false, false}},
+        {
+            {"Shadow Strike", 25, 90, 1, "NULL"},
+            {"Dark Pulse", 30, 85, 1, "NULL"},
+            {"Night Slash", 35, 80, 1, "NULL"},
+            {"Curse", 0, 50, 1, "psn"}
+        }
+    },
+    {
+        "Celestial Phoenix",
+        1, 0, 100, "fire",
+        {70, 15, 15, 90, 20, {false, false, false, false}},
+        {70, 15, 15, 90, 20, {false, false, false, false}},
+        {
+            {"Flame Burst", 30, 85, 1, "brn"},
+            {"Wing Attack", 25, 95, 1, "NULL"},
+            {"Ember", 20, 100, 1, "NULL"},
+            {"Inferno", 45, 70, 1, "brn"}
+        }
+    },
+    {
+        "Aqua Serpent",
+        1, 0, 100, "water",
+        {75, 12, 15, 90, 15, {false, false, false, false}},
+        {75, 12, 15, 90, 15, {false, false, false, false}},
+        {
+            {"Water Jet", 30, 90, 1, "NULL"},
+            {"Bite", 25, 95, 1, "NULL"},
+            {"Aqua Tail", 35, 85, 1, "NULL"},
+            {"Flood", 0, 50, 1, "frz"}
+        }
+    },
+    {
+        "Wind Harpy",
+        1, 0, 100, "wind",
+        {60, 20, 10, 100, 25, {false, false, false, false}},
+        {60, 20, 10, 100, 25, {false, false, false, false}},
+        {
+            {"Gust", 25, 95, 1, "NULL"},
+            {"Air Slash", 30, 90, 1, "NULL"},
+            {"Talon Strike", 35, 85, 1, "NULL"},
+            {"Tempest", 0, 50, 1, "prs"}
+        }
+    },
+    {
+        "Iron Behemoth",
+        1, 0, 100, "steel",
+        {95, 10, 30, 80, 10, {false, false, false, false}},
+        {95, 10, 30, 80, 10, {false, false, false, false}},
+        {
+            {"Metal Claw", 30, 90, 1, "NULL"},
+            {"Iron Bash", 25, 95, 1, "NULL"},
+            {"Steel Charge", 40, 80, 1, "NULL"},
+            {"Fortify", 0, 100, 1, "atkBuff"}
+        }
+    }
+};
+
+
 typedef struct scene scene;
 typedef struct {
     inventory* inv;
@@ -92,6 +235,9 @@ typedef struct {
     int baseXen;
     stats stat;
     stats baseStats;
+    Summon* activeSummon;
+    int activeSummonSet[3]; // Array to store indices of active summons
+    int activeSummonCount;  // Number of summons in active set
     struct {
         item helmet;
         item armour;
@@ -109,15 +255,6 @@ typedef struct scene {
     int sceneNo;
     char* choices[];
 } scene;
-
-typedef struct {
-    char* name;
-    int dmg;
-    int acc;
-    int lvlReq;
-    char* debuff;
-} move;
-
 
 typedef struct {
     char* name;
@@ -203,6 +340,9 @@ enemy allEnemy[] = {
 
 // Function declarations
 player* createPlayer();
+void summonLvlUp(Summon* s);
+void manageSummons(player* p);
+void menu(player* p);
 inventory* createInventory();
 void addItem(inventory* inv, item newItem);
 void removeItemFromInventory(char* itemName, inventory* inv);
@@ -462,8 +602,8 @@ void displayInventory(inventory* inv, player* p) {
         }
         input[strcspn(input, "\n")] = '\0';
         int choice = atoi(input);
-        if (choice < 1 || choice > 5) {
-            type("Invalid choice. Please enter 1-5.\n");
+        if (choice < 1 || choice > 6) {
+            type("Invalid choice. Please enter 1-6.\n");
             continue;
         }
         bool hasItems = false;
@@ -482,7 +622,7 @@ void displayInventory(inventory* inv, player* p) {
                         consumableNum++;
                     }
                 }
-                if (!hasItems) {type("No consumables.\n"); break;}
+                if (!hasItems) { type("No consumables.\n"); break; }
                 type("Do you want to use an item? (y/n)\n");
                 char useChoice[10];
                 if (fgets(useChoice, sizeof(useChoice), stdin) == NULL) {
@@ -503,7 +643,7 @@ void displayInventory(inventory* inv, player* p) {
                         type("Invalid item number.\n");
                     } else {
                         consumableNum = 0; 
-                        for(int i = 0; i < inv->itemCount; i++) {
+                        for (int i = 0; i < inv->itemCount; i++) {
                             if (inv->items[i].itemType == consumable) {
                                 consumableNum++;
                                 if (consumableNum == useIndex + 1) {
@@ -753,6 +893,20 @@ void equipItem(player* p, item* item) {
             return;
     }
     item->data.equipment.isEquipped = true;
+    switch(item->data.equipment.type){
+        case helmet:
+            p->equipment.helmet.data.equipment.isEquipped = true;
+            break;
+        case armour:
+            p->equipment.armour.data.equipment.isEquipped = true;
+            break;
+        case weapon:
+            p->equipment.weapon.data.equipment.isEquipped = true;
+            break;
+        case accessory:
+            p->equipment.accessory.data.equipment.isEquipped = true;
+            break;
+    }
     type("Equipped %s\n", item->name);
     p->baseStats.hp += item->data.equipment.hp;
     p->baseStats.atk += item->data.equipment.atk;
@@ -784,6 +938,376 @@ void lvlUp(player* p) {
     type("Def: %d\n", p->baseStats.def);
     type("Agility: %d\n", p->baseStats.agility);
 }
+
+
+void summonLvlUp(Summon* s) {
+    if (!s) return;
+    type("%s leveled up!\nNow level %d!\n", s->name, s->lvl + 1);
+    s->lvl += 1;
+    s->xp -= s->xpbar;
+    s->xpbar += 100;
+    s->baseStats.hp += 10;
+    s->baseStats.agility += 2;
+    s->baseStats.def += 3;
+    s->baseStats.atk += 3;
+    s->stat.hp = s->baseStats.hp;
+    s->stat.agility = s->baseStats.agility;
+    s->stat.def = s->baseStats.def;
+    s->stat.atk = s->baseStats.atk;
+    type("HP: %d\n", s->baseStats.hp);
+    type("Atk: %d\n", s->baseStats.atk);
+    type("Def: %d\n", s->baseStats.def);
+    type("Agility: %d\n", s->baseStats.agility);
+}
+
+
+void manageSummons(player* p) {
+    if (!p) {
+        type("Error: Invalid player\n");
+        return;
+    }
+    while (true) {
+        type("Manage Summons:\n1. View Active Summon Set\n2. Add Summons to Active Set\n3. Replace Summon\n4. Exit\n");
+        char input[10];
+        if (fgets(input, sizeof(input), stdin) == NULL) {
+            type("Error reading input.\n");
+            return;
+        }
+        input[strcspn(input, "\n")] = '\0';
+        int choice = atoi(input);
+        if (choice < 1 || choice > 4) {
+            type("Invalid choice. Please enter 1-4.\n");
+            continue;
+        }
+        switch (choice) {
+            case 1: // View Active Summon Set
+                type("Active Summon Set:\n");
+                if (p->activeSummonCount == 0) {
+                    type("No summons in active set.\n");
+                } else {
+                    for (int i = 0; i < p->activeSummonCount; i++) {
+                        int idx = p->activeSummonSet[i];
+                        type("%d. %s (Type: %s, Level: %d, HP: %d, Atk: %d, Def: %d, Agility: %d)\n",
+                             i + 1, allSummons[idx].name, allSummons[idx].type, allSummons[idx].lvl,
+                             allSummons[idx].baseStats.hp, allSummons[idx].baseStats.atk,
+                             allSummons[idx].baseStats.def, allSummons[idx].baseStats.agility);
+                    }
+                }
+                break;
+            case 2: // Add Summons to Active Set
+                if (p->activeSummonCount > 0) {
+                    type("You already have summons. Use Replace to change them.\n");
+                    break;
+                }
+                type("Available Summons:\n");
+                for (int i = 0; i < 10; i++) {
+                    type("%d. %s (Type: %s, Level: %d, HP: %d, Atk: %d, Def: %d, Agility: %d)\n",
+                         i + 1, allSummons[i].name, allSummons[i].type, allSummons[i].lvl,
+                         allSummons[i].baseStats.hp, allSummons[i].baseStats.atk,
+                         allSummons[i].baseStats.def, allSummons[i].baseStats.agility);
+                }
+                type("Enter exactly 3 summon numbers (1-10, comma-separated, e.g., 1,2,3):\n");
+                char addInput[20];
+                if (fgets(addInput, sizeof(addInput), stdin) == NULL) {
+                    type("Error reading input.\n");
+                    break;
+                }
+                addInput[strcspn(addInput, "\n")] = '\0';
+                if (strcmp(addInput, "0") == 0) break;
+                
+                // Parse comma-separated input
+                int selectedSummons[3] = {-1, -1, -1};
+                int selectedCount = 0;
+                char* token = strtok(addInput, ",");
+                while (token && selectedCount < 3) {
+                    int idx = atoi(token) - 1;
+                    if (idx >= 0 && idx < 10) {
+                        // Check if summon is already selected in this input
+                        bool alreadySelected = false;
+                        for (int j = 0; j < selectedCount; j++) {
+                            if (selectedSummons[j] == idx) {
+                                alreadySelected = true;
+                                break;
+                            }
+                        }
+                        if (!alreadySelected) {
+                            selectedSummons[selectedCount++] = idx;
+                        }
+                    }
+                    token = strtok(NULL, ",");
+                }
+                
+                // Validate exactly 3 summons
+                if (selectedCount != 3) {
+                    type("You must select exactly 3 valid summons (1-10).\n");
+                    break;
+                }
+                
+                // Add selected summons
+                for (int i = 0; i < 3; i++) {
+                    p->activeSummonSet[i] = selectedSummons[i];
+                    p->activeSummonCount++;
+                    type("%s added to active summon set.\n", allSummons[selectedSummons[i]].name);
+                }
+                break;
+            case 3: // Replace Summon
+                if (p->activeSummonCount < 3) {
+                    type("You must have 3 summons to replace. Add summons first.\n");
+                    break;
+                }
+                type("Active Summon Set:\n");
+                for (int i = 0; i < p->activeSummonCount; i++) {
+                    int idx = p->activeSummonSet[i];
+                    type("%d. %s (Type: %s, Level: %d, HP: %d, Atk: %d, Def: %d, Agility: %d)\n",
+                         i + 1, allSummons[idx].name, allSummons[idx].type, allSummons[idx].lvl,
+                         allSummons[idx].baseStats.hp, allSummons[idx].baseStats.atk,
+                         allSummons[idx].baseStats.def, allSummons[idx].baseStats.agility);
+                }
+                type("Enter the number of the summon to replace (1-3, or 0 to cancel):\n");
+                char replaceInput[10];
+                if (fgets(replaceInput, sizeof(replaceInput), stdin) == NULL) {
+                    type("Error reading input.\n");
+                    break;
+                }
+                replaceInput[strcspn(replaceInput, "\n")] = '\0';
+                int replaceIndex = atoi(replaceInput) - 1;
+                if (replaceIndex == -1) break;
+                if (replaceIndex < 0 || replaceIndex >= 3) {
+                    type("Invalid summon number. Please enter 1-3.\n");
+                    break;
+                }
+                type("Available Summons:\n");
+                for (int i = 0; i < 10; i++) {
+                    type("%d. %s (Type: %s, Level: %d, HP: %d, Atk: %d, Def: %d, Agility: %d)\n",
+                         i + 1, allSummons[i].name, allSummons[i].type, allSummons[i].lvl,
+                         allSummons[i].baseStats.hp, allSummons[i].baseStats.atk,
+                         allSummons[i].baseStats.def, allSummons[i].baseStats.agility);
+                }
+                type("Enter new summon number (1-10, or 0 to cancel):\n");
+                char newSummonInput[10];
+                if (fgets(newSummonInput, sizeof(newSummonInput), stdin) == NULL) {
+                    type("Error reading input.\n");
+                    break;
+                }
+                newSummonInput[strcspn(newSummonInput, "\n")] = '\0';
+                int newSummonIndex = atoi(newSummonInput) - 1;
+                if (newSummonIndex == -1) break;
+                if (newSummonIndex < 0 || newSummonIndex >= 10) {
+                    type("Invalid summon number. Please enter 1-10.\n");
+                    break;
+                }
+                // Check if new summon is already in active set
+                bool alreadyInSet = false;
+                for (int i = 0; i < p->activeSummonCount; i++) {
+                    if (i != replaceIndex && p->activeSummonSet[i] == newSummonIndex) {
+                        alreadyInSet = true;
+                        break;
+                    }
+                }
+                if (alreadyInSet) {
+                    type("Summon is already in active set.\n");
+                    break;
+                }
+                type("%s replaced with %s in active summon set.\n",
+                     allSummons[p->activeSummonSet[replaceIndex]].name, allSummons[newSummonIndex].name);
+                p->activeSummonSet[replaceIndex] = newSummonIndex;
+                break;
+            case 4: // Exit
+                return;
+        }
+    }
+}
+
+
+void menu(player* p) {
+    if (!p) {
+        type("Error: Invalid player\n");
+        return;
+    }
+    while (true) {
+        type("Menu:\n1. Monstropedia\n2. Inventory\n3. Player Stats\n4. Equipment\n5. Maps\n6. Summon Seals\n7. Exit\n");
+        char input[10];
+        if (fgets(input, sizeof(input), stdin) == NULL) {
+            type("Error reading input.\n");
+            return;
+        }
+        input[strcspn(input, "\n")] = '\0';
+        int choice = atoi(input);
+        if (choice < 1 || choice > 7) {
+            type("Invalid choice. Please enter 1-7.\n");
+            continue;
+        }
+        switch (choice) {
+            case 1: // Monstropedia
+                while (true) {
+                    type("Monstropedia:\n1. Summons\n2. Monsters\n3. Back\n");
+                    char subInput[10];
+                    if (fgets(subInput, sizeof(subInput), stdin) == NULL) {
+                        type("Error reading input.\n");
+                        break;
+                    }
+                    subInput[strcspn(subInput, "\n")] = '\0';
+                    int subChoice = atoi(subInput);
+                    if (subChoice < 1 || subChoice > 3) {
+                        type("Invalid choice. Please enter 1-3.\n");
+                        continue;
+                    }
+                    if (subChoice == 1) { // Summons
+                        type("Summons:\n");
+                        for (int i = 0; i < 10; i++) {
+                            type("%d. %s (Type: %s, Level: %d, HP: %d, Atk: %d, Def: %d, Agility: %d)\n",
+                                 i + 1, allSummons[i].name, allSummons[i].type, allSummons[i].lvl,
+                                 allSummons[i].baseStats.hp, allSummons[i].baseStats.atk,
+                                 allSummons[i].baseStats.def, allSummons[i].baseStats.agility);
+                        }
+                    } else if (subChoice == 2) { // Monsters
+                        type("Monsters:\n");
+                        for (int i = 0; i < 3; i++) {
+                            type("%d. %s (Type: %s, Level: %d, HP: %d, Atk: %d, Def: %d, Agility: %d)\n",
+                                 i + 1, allEnemy[i].name, allEnemy[i].type, allEnemy[i].lvl,
+                                 allEnemy[i].stat.hp, allEnemy[i].stat.atk,
+                                 allEnemy[i].stat.def, allEnemy[i].stat.agility);
+                        }
+                    } else { // Back
+                        break;
+                    }
+                }
+                break;
+            case 2: // Inventory
+                displayInventory(p->inv, p);
+                break;
+            case 3: // Player Stats
+                type("Player Stats:\nLevel: %d\nXP: %d\nHP: %d\nAttack: %d\nDefense: %d\nAgility: %d\nXen: %d\n",
+                     p->lvl, p->xp, p->stat.hp, p->stat.atk, p->stat.def, p->stat.agility, p->xen);
+                break;
+            case 4: // Equipment
+                while (true) {
+                    type("Equipment:\n");
+                    type("1. Helmet: %s (HP: %d, Def: %d, Atk: %d, Agility: %d, Acc: %d, Equipped: %s)\n",
+                         p->equipment.helmet.name ? p->equipment.helmet.name : "None",
+                         p->equipment.helmet.data.equipment.hp, p->equipment.helmet.data.equipment.def,
+                         p->equipment.helmet.data.equipment.atk, p->equipment.helmet.data.equipment.agility,
+                         p->equipment.helmet.data.equipment.acc,
+                         p->equipment.helmet.data.equipment.isEquipped ? "Yes" : "No");
+                    type("2. Armour: %s (HP: %d, Def: %d, Atk: %d, Agility: %d, Acc: %d, Equipped: %s)\n",
+                         p->equipment.armour.name ? p->equipment.armour.name : "None",
+                         p->equipment.armour.data.equipment.hp, p->equipment.armour.data.equipment.def,
+                         p->equipment.armour.data.equipment.atk, p->equipment.armour.data.equipment.agility,
+                         p->equipment.armour.data.equipment.acc,
+                         p->equipment.armour.data.equipment.isEquipped ? "Yes" : "No");
+                    type("3. Weapon: %s (HP: %d, Def: %d, Atk: %d, Agility: %d, Acc: %d, Equipped: %s)\n",
+                         p->equipment.weapon.name ? p->equipment.weapon.name : "None",
+                         p->equipment.weapon.data.equipment.hp, p->equipment.weapon.data.equipment.def,
+                         p->equipment.weapon.data.equipment.atk, p->equipment.weapon.data.equipment.agility,
+                         p->equipment.weapon.data.equipment.acc,
+                         p->equipment.weapon.data.equipment.isEquipped ? "Yes" : "No");
+                    type("4. Accessory: %s (HP: %d, Def: %d, Atk: %d, Agility: %d, Acc: %d, Equipped: %s)\n",
+                         p->equipment.accessory.name ? p->equipment.accessory.name : "None",
+                         p->equipment.accessory.data.equipment.hp, p->equipment.accessory.data.equipment.def,
+                         p->equipment.accessory.data.equipment.atk, p->equipment.accessory.data.equipment.agility,
+                         p->equipment.accessory.data.equipment.acc,
+                         p->equipment.accessory.data.equipment.isEquipped ? "Yes" : "No");
+                    type("5. Equip Item\n6. Unequip Item\n7. Back\n");
+                    char equipInput[10];
+                    if (fgets(equipInput, sizeof(equipInput), stdin) == NULL) {
+                        type("Error reading input.\n");
+                        break;
+                    }
+                    equipInput[strcspn(equipInput, "\n")] = '\0';
+                    int equipChoice = atoi(equipInput);
+                    if (equipChoice < 1 || equipChoice > 7) {
+                        type("Invalid choice. Please enter 1-7.\n");
+                        continue;
+                    }
+                    if (equipChoice == 5) { // Equip Item
+                        type("Equipment in Inventory:\n");
+                        int equipmentCount = 0;
+                        int equipmentIndices[inventoryCapacity];
+                        for (int i = 0; i < p->inv->itemCount; i++) {
+                            if (p->inv->items[i].itemType == equipment && !p->inv->items[i].data.equipment.isEquipped) {
+                                equipmentIndices[equipmentCount] = i;
+                                equipmentCount++;
+                                type("%d. %s (HP: %d, Def: %d, Atk: %d, Agility: %d, Acc: %d)\n",
+                                     equipmentCount, p->inv->items[i].name,
+                                     p->inv->items[i].data.equipment.hp, p->inv->items[i].data.equipment.def,
+                                     p->inv->items[i].data.equipment.atk, p->inv->items[i].data.equipment.agility,
+                                     p->inv->items[i].data.equipment.acc);
+                            }
+                        }
+                        if (equipmentCount == 0) {
+                            type("No unequipped equipment in inventory.\n");
+                            continue;
+                        }
+                        type("Enter the number of the item to equip (or 0 to cancel):\n");
+                        char itemInput[10];
+                        if (fgets(itemInput, sizeof(itemInput), stdin) == NULL) {
+                            type("Error reading input.\n");
+                            continue;
+                        }
+                        itemInput[strcspn(itemInput, "\n")] = '\0';
+                        int itemChoice = atoi(itemInput);
+                        if (itemChoice == 0) continue;
+                        if (itemChoice < 1 || itemChoice > equipmentCount) {
+                            type("Invalid item number.\n");
+                            continue;
+                        }
+                        int invIndex = equipmentIndices[itemChoice - 1];
+                        item* selectedItem = &p->inv->items[invIndex];
+                        equipItem(p, selectedItem);
+                    } else if (equipChoice == 6) { // Unequip Item
+                        type("Select equipment to unequip:\n1. Helmet\n2. Armour\n3. Weapon\n4. Accessory\n5. Back\n");
+                        char unequipInput[10];
+                        if (fgets(unequipInput, sizeof(unequipInput), stdin) == NULL) {
+                            type("Error reading input.\n");
+                            continue;
+                        }
+                        unequipInput[strcspn(unequipInput, "\n")] = '\0';
+                        int unequipChoice = atoi(unequipInput);
+                        if (unequipChoice < 1 || unequipChoice > 5) {
+                            type("Invalid choice. Please enter 1-5.\n");
+                            continue;
+                        }
+                        if (unequipChoice == 5) continue;
+                        unequipItem(p, unequipChoice - 1);
+                    } else if (equipChoice == 7) { // Back
+                        break;
+                    }
+                }
+                break;
+            case 5: // Maps
+                while (true) {
+                    type("Maps:\n1. Silkfield Village\n2. Limewich Town\n3. Cragbarrow Fortress\n4. Back\n");
+                    char mapInput[10];
+                    if (fgets(mapInput, sizeof(mapInput), stdin) == NULL) {
+                        type("Error reading input.\n");
+                        break;
+                    }
+                    mapInput[strcspn(mapInput, "\n")] = '\0';
+                    int mapChoice = atoi(mapInput);
+                    if (mapChoice < 1 || mapChoice > 4) {
+                        type("Invalid choice. Please enter 1-4.\n");
+                        continue;
+                    }
+                    if (mapChoice == 1) {
+                        type("Silkfield Village was a quiet, cozy hamlet nestled among soft hills, famed for its lush cotton fields and gentle pace of life. Known for producing the finest textiles, its charm was unmatched. That peace shattered when monsters ravaged the land, reducing the once-thriving village to ash and silence.\n");
+                    } else if (mapChoice == 2) {
+                        type("Limewich Town, a bustling trade hub, thrived as the vital link between inland villages and the coastal ports. Merchants, travelers, and caravans constantly passed through its lively markets. Known for its warehouses, inns, and spice-laden air, Limewich prospered by bridging rural goods with maritime commerce, however in these recent times of high monster rampage frequency their gates are staying closed and the inland villages are getting less and less goods.\n");
+                    } else if (mapChoice == 3) {
+                        type("Cragbarrow Fortress stands as the critical checkpoint between Limewich and Bridgemoor Port, inspecting all goods and travelers passing through. Tasked with maintaining order and suppressing the region’s monster threats, the garrison plays a vital role in trade security and local safety. Recently, a sharp surge in monster activity has left the fortress stretched thin. In response, they’ve begun recruiting knights and squires around the clock—no questions asked. With danger rising, every sword counts at Cragbarrow.\n");
+                    } else {
+                        break;
+                    }
+                }
+                break;
+            case 6: // Summon Seals
+                manageSummons(p);
+                break;
+            case 7: // Exit
+                return;
+        }
+    }
+}
+
 
 void type(const char* format, ...) {
     va_list args;
@@ -839,22 +1363,29 @@ void type(const char* format, ...) {
 void init_combat(player* p, enemy* e) {
     if (!e) return;
     type("A level %d %s appears in front of you.\n", e->lvl, e->name);
-    int choice;
+int choice;
     int damage;
     int xp;
     int moveIndex;
-    int brnCounter = 0;
-    int psnCounter = 0;
-    int prsCounter = 0;
+    int brnCounter = 0, psnCounter = 0, prsCounter = 0;
+    int summonBrnCounter = 0, summonPsnCounter = 0, summonPrsCounter = 0;
     bool isHit;
     while (p->stat.hp > 0 && e->stat.hp > 0) {
-        type("Your HP: %d\nXen: %d\n%s's HP: %d\nWhat do you do?\n1. Attack\n2. Run Away\n3. Pray\n4. Chant\n5. Use Item", p->stat.hp, p->xen, e->name, e->stat.hp);
-        if (scanf("%d", &choice) != 1) {
-            type("Invalid input. Please enter a number.\n");
-            while (getchar() != '\n');
+        type("Your HP: %d\nXen: %d\n", p->stat.hp, p->xen);
+        if (p->activeSummon && p->activeSummon->stat.hp > 0) {
+            type("%s's HP: %d\n", p->activeSummon->name, p->activeSummon->stat.hp);
+        }
+        type("%s's HP: %d\nWhat do you do?\n1. Attack\n2. Run Away\n3. Pray\n4. Chant\n5. Use Item\n6. Summon\n", e->name, e->stat.hp);
+        char input[10];
+        fgets(input, sizeof(input), stdin);
+        input[strcspn(input, "\n")] = '\0';
+        choice = atoi(input);
+        if (choice < 1 || choice > 6) {
+            type("Invalid choice.\n");
             continue;
         }
-        if (choice == 2) {
+
+        if (choice == 2) { // Run Away
             if (p->stat.agility > e->stat.agility) {
                 type("Ran away successfully!\n");
                 break;
@@ -868,66 +1399,59 @@ void init_combat(player* p, enemy* e) {
                     type("%s is too fast. Failed to run away.\n", e->name);
                 }
             }
-        } else if (choice == 1) {
-            if (p->stat.status.isParalysed && rand() % 2 == 0) type("You are paralyzed you can't move.\n");
-            else {
+        } else if (choice == 1) { // Attack
+            if (p->stat.status.isParalysed && rand() % 2 == 0) {
+                type("You are paralyzed, you can't move.\n");
+            } else {
                 type("You attacked the %s!\n", e->name);
                 damage = p->stat.atk - e->stat.def + (int)ceil(((rand() % 31) / 100.0) * p->stat.atk);
                 if (damage < 0) damage = 0;
                 e->stat.hp -= damage;
                 type("You did %d damage!\n", damage);
             }
-
-        }
-
-        else if (choice == 3) { // Pray
-            int prayerOutcome = rand() % 2; // Randomly picks 0 (Blessing) or 1 (Curse)
-            
+        } else if (choice == 3) { // Pray
+            int prayerOutcome = rand() % 2;
             switch (prayerOutcome) {
-                case 0: { // Blessings (50% chance)
+                case 0: {
                     int grace = rand() % 100;
-                    
-                    if (grace <= 40) { // 40% chance: Cure all status effects
+                    if (grace <= 40) {
                         p->stat.status.isBurning = false;
                         p->stat.status.isPoisoned = false;
                         p->stat.status.isParalysed = false;
+                        if (p->activeSummon) {
+                            p->activeSummon->stat.status.isBurning = false;
+                            p->activeSummon->stat.status.isPoisoned = false;
+                            p->activeSummon->stat.status.isParalysed = false;
+                        }
                         type("The Divine Goddess cures your ailments!\n");
-                    } 
-                    else if (grace <= 60) { // 20% chance: Smite enemy (25% of their HP)
-                        int smiteDmg = e->stat.hp / 2;  //yes much needed actually
+                    } else if (grace <= 60) {
+                        int smiteDmg = e->stat.hp / 2;
                         e->stat.hp -= smiteDmg;
                         type("The Divine Goddess smites your foe for %d damage!\n", smiteDmg);
-                    } 
-                    else if (grace <= 80) { // 20% chance: Heal player (25% of max HP)
+                    } else if (grace <= 80) {
                         int healAmount = p->baseStats.hp / 4;
                         p->stat.hp += healAmount;
                         if (p->stat.hp > p->baseStats.hp) p->stat.hp = p->baseStats.hp;
                         type("The Divine Goddess heals you for %d HP!\n", healAmount);
-                    } 
-                    else { // 20% chance: Temporary ATK boost (+10)
+                    } else {
                         p->stat.atk += 10;
                         type("The Divine Goddess blesses you with holy strength! (+10 ATK)\n");
                     }
                     break;
                 }
-                
-                case 1: { // Curse (50% chance)
+                case 1: {
                     int jinx = rand() % 100;
-                    
-                    if (jinx <= 40) { // 40% chance: Burn player
+                    if (jinx <= 40) {
                         p->stat.status.isBurning = true;
-                        type("The Divine Goddess' holy flames are purifying you ! (You are now Burning)\n");
-                    } 
-                    else if (jinx <= 60) { // 20% chance: Lose 25% HP
+                        type("The Divine Goddess' holy flames are purifying you! (You are now Burning)\n");
+                    } else if (jinx <= 60) {
                         int punishDmg = p->baseStats.hp / 4;
                         p->stat.hp -= punishDmg;
                         type("The Divine Goddess punishes you for %d damage!\n", punishDmg);
-                    } 
-                    else if (jinx <= 80) { // 20% chance: Paralysis
+                    } else if (jinx <= 80) {
                         p->stat.status.isParalysed = true;
                         type("The Divine Goddess demands your repentance!\n");
-                    } 
-                    else { // 20% chance: Both lose 25% HP
+                    } else {
                         int mutualDmg = p->baseStats.hp / 4;
                         p->stat.hp -= mutualDmg;
                         e->stat.hp -= mutualDmg;
@@ -936,46 +1460,30 @@ void init_combat(player* p, enemy* e) {
                     break;
                 }
             }
-        } 
-
-        else if (choice == 4) {   // Chant option
+        } else if (choice == 4) { // Chant
             char input[100];
-            
-            // Get player input
             type("Enter chant: ");
-            getchar(); // Clear input buffer
             fgets(input, sizeof(input), stdin);
-            input[strcspn(input, "\n")] = '\0'; // Remove newline
-
-            // Check against all spells
-            Spell *matched_spell = NULL;
+            input[strcspn(input, "\n")] = '\0';
+            Spell* matched_spell = NULL;
             for (int i = 0; i < sizeof(allSpells)/sizeof(allSpells[0]); i++) {
                 if (strcmp(input, allSpells[i].chant) == 0) {
                     matched_spell = &allSpells[i];
                     break;
                 }
             }
-
             if (!matched_spell) {
                 type("Spell Casting Failed!\n");
                 p->stat.hp -= 10;
                 type("You took 10 damage from magical backlash!\n");
-                // DON'T return here - let combat continue
-            }
-            else if (p->xen < matched_spell->xenreq) {
+            } else if (p->xen < matched_spell->xenreq) {
                 type("Spell Casting Failed! (Not enough Xen)\n");
-            }
-            else {
-                // Successful cast
+            } else {
                 p->xen -= matched_spell->xenreq;
-                int damage = matched_spell->basedamage + (5 * p->lvl);  // +5 DMG PER PLAYER'S LEVEL
+                int damage = matched_spell->basedamage + (5 * p->lvl);
                 e->stat.hp -= damage;
-                
-                type("%s was cast successfully! You did %d damage to the enemy.\n",
-                    matched_spell->name, damage);
+                type("%s was cast successfully! You did %d damage to the enemy.\n", matched_spell->name, damage);
                 type("Remaining Xen: %d \n", p->xen);
-
-                // Apply debuffs
                 if (matched_spell->debuff.isBurning) {
                     e->stat.status.isBurning = true;
                     type("The enemy bursts into flames!\n");
@@ -985,33 +1493,140 @@ void init_combat(player* p, enemy* e) {
                     type("The enemy is paralyzed!\n");
                 }
             }
-            
-        }
-        else if (choice == 5) { // Use Item
+        } else if (choice == 5) { // Use Item
             useItemPanel(p, p->inv);
+            
+        } else if (choice == 6) { // Summon
+            if (p->activeSummon && p->activeSummon->stat.hp > 0) {
+                type("You already have an active summon: %s\n", p->activeSummon->name);
+            } else if (p->activeSummonCount == 0) {
+                type("No summons in active set! Please add summons via inventory.\n");
+            } else if (p->xen < 30) {
+                type("Not enough Xen to summon!\n");
+            } else {
+                p->xen -= 30;
+                int summonIndex = p->activeSummonSet[rand() % p->activeSummonCount];
+                if (p->activeSummon) {
+                    free(p->activeSummon->name);
+                    free(p->activeSummon->type);
+                    for (int i = 0; i < 4; i++) {
+                        free(p->activeSummon->moveset[i].name);
+                        free(p->activeSummon->moveset[i].debuff);
+                    }
+                    free(p->activeSummon);
+                }
+                p->activeSummon = malloc(sizeof(Summon));
+                if (p->activeSummon) {
+                    *p->activeSummon = allSummons[summonIndex];
+                    p->activeSummon->name = strdup(allSummons[summonIndex].name);
+                    p->activeSummon->type = strdup(allSummons[summonIndex].type);
+                    for (int i = 0; i < 4; i++) {
+                        p->activeSummon->moveset[i].name = strdup(allSummons[summonIndex].moveset[i].name);
+                        p->activeSummon->moveset[i].debuff = strdup(allSummons[summonIndex].moveset[i].debuff);
+                    }
+                    type("Summoned %s!\n", p->activeSummon->name);
+                } else {
+                    type("Failed to summon due to memory allocation error.\n");
+                    p->xen += 30;
+                }
+            }
         }
-    
-        else {
 
-            type("Invalid choice.\n");
-            continue;
+        // Summon's turn
+        if (p->activeSummon && p->activeSummon->stat.hp > 0) {
+            if (p->activeSummon->stat.status.isParalysed && rand() % 2 == 0) {
+                type("%s is paralyzed and can't move!\n", p->activeSummon->name);
+            } else {
+                moveIndex = rand() % 4;
+                isHit = (rand() % 100 < p->activeSummon->moveset[moveIndex].acc);
+                type("%s used %s\n", p->activeSummon->name, p->activeSummon->moveset[moveIndex].name);
+                if (isHit) {
+                    damage = p->activeSummon->moveset[moveIndex].dmg * (p->activeSummon->stat.atk) / (e->stat.def + 1) + (int)ceil(((rand() % 31) / 100.0) * p->activeSummon->moveset[moveIndex].dmg);
+                    if (damage < 0) damage = 0;
+                    if (!strcmp(p->activeSummon->moveset[moveIndex].debuff, "NULL")) {
+                        e->stat.hp -= damage;
+                        type("%s did %d damage!\n", p->activeSummon->name, damage);
+                    } else if (!strcmp(p->activeSummon->moveset[moveIndex].debuff, "brn")) {
+                        e->stat.status.isBurning = true;
+                        e->stat.hp -= damage;
+                        type("%s did %d damage and burned the enemy!\n", p->activeSummon->name, damage);
+                    } else if (!strcmp(p->activeSummon->moveset[moveIndex].debuff, "psn")) {
+                        e->stat.status.isPoisoned = true;
+                        e->stat.hp -= damage;
+                        type("%s did %d damage and poisoned the enemy!\n", p->activeSummon->name, damage);
+                    } else if (!strcmp(p->activeSummon->moveset[moveIndex].debuff, "prs")) {
+                        e->stat.status.isParalysed = true;
+                        e->stat.hp -= damage;
+                        type("%s did %d damage and paralyzed the enemy!\n", p->activeSummon->name, damage);
+                    }
+                } else {
+                    type("%s missed!\n", p->activeSummon->name);
+                }
+            }
         }
+
+        // Enemy's turn
         if (e->stat.hp > 0) {
             moveIndex = rand() % 4;
-            isHit = (rand() % 100 < e->moveset[moveIndex].acc) ? true : false;
+            isHit = (rand() % 100 < e->moveset[moveIndex].acc);
             type("%s used %s\n", e->name, e->moveset[moveIndex].name);
-            damage = e->moveset[moveIndex].dmg * (e->stat.atk) / (p->stat.def) + (int)ceil(((rand() % 31) / 100.0) * e->moveset[moveIndex].dmg);
+            damage = e->moveset[moveIndex].dmg * (e->stat.atk) / (p->stat.def + 1) + (int)ceil(((rand() % 31) / 100.0) * e->moveset[moveIndex].dmg);
             if (damage < 0) damage = 0;
             if (isHit) {
-                if (!strcmp(e->moveset[moveIndex].debuff, "NULL")) { p->stat.hp -= damage; type("You took %d damage!\n", damage); }
-                else if (!strcmp(e->moveset[moveIndex].debuff, "brn")) { p->stat.status.isBurning = true; brnCounter = 0; p->stat.hp -= damage; type("You took %d damage!\n", damage); }
-                else if (!strcmp(e->moveset[moveIndex].debuff, "psn")) { p->stat.status.isPoisoned = true; psnCounter = 0; p->stat.hp -= damage; type("You took %d damage!\n", damage); }
-                else if (!strcmp(e->moveset[moveIndex].debuff, "prs")) { p->stat.status.isParalysed = true; prsCounter = 0; p->stat.hp -= damage; type("You took %d damage!\n", damage); }
-                else if (!strcmp(e->moveset[moveIndex].debuff, "atkBuff")) { e->stat.atk += 10; type("%s's attack went up!\n", e->name); }
+                bool targetSummon = (p->activeSummon && p->activeSummon->stat.hp > 0 && rand() % 2 == 0);
+                if (targetSummon) {
+                    if (!strcmp(e->moveset[moveIndex].debuff, "NULL")) {
+                        p->activeSummon->stat.hp -= damage;
+                        type("%s took %d damage!\n", p->activeSummon->name, damage);
+                    } else if (!strcmp(e->moveset[moveIndex].debuff, "brn")) {
+                        p->activeSummon->stat.status.isBurning = true;
+                        summonBrnCounter = 0;
+                        p->activeSummon->stat.hp -= damage;
+                        type("%s took %d damage!\n", p->activeSummon->name, damage);
+                    } else if (!strcmp(e->moveset[moveIndex].debuff, "psn")) {
+                        p->activeSummon->stat.status.isPoisoned = true;
+                        summonPsnCounter = 0;
+                        p->activeSummon->stat.hp -= damage;
+                        type("%s took %d damage!\n", p->activeSummon->name, damage);
+                    } else if (!strcmp(e->moveset[moveIndex].debuff, "prs")) {
+                        p->activeSummon->stat.status.isParalysed = true;
+                        summonPrsCounter = 0;
+                        p->activeSummon->stat.hp -= damage;
+                        type("%s took %d damage!\n", p->activeSummon->name, damage);
+                    } else if (!strcmp(e->moveset[moveIndex].debuff, "atkBuff")) {
+                        e->stat.atk += 10;
+                        type("%s's attack went up!\n", e->name);
+                    }
+                } else {
+                    if (!strcmp(e->moveset[moveIndex].debuff, "NULL")) {
+                        p->stat.hp -= damage;
+                        type("You took %d damage!\n", damage);
+                    } else if (!strcmp(e->moveset[moveIndex].debuff, "brn")) {
+                        p->stat.status.isBurning = true;
+                        brnCounter = 0;
+                        p->stat.hp -= damage;
+                        type("You took %d damage!\n", damage);
+                    } else if (!strcmp(e->moveset[moveIndex].debuff, "psn")) {
+                        p->stat.status.isPoisoned = true;
+                        psnCounter = 0;
+                        p->stat.hp -= damage;
+                        type("You took %d damage!\n", damage);
+                    } else if (!strcmp(e->moveset[moveIndex].debuff, "prs")) {
+                        p->stat.status.isParalysed = true;
+                        prsCounter = 0;
+                        p->stat.hp -= damage;
+                        type("You took %d damage!\n", damage);
+                    } else if (!strcmp(e->moveset[moveIndex].debuff, "atkBuff")) {
+                        e->stat.atk += 10;
+                        type("%s's attack went up!\n", e->name);
+                    }
+                }
             } else {
                 type("%s missed!\n", e->name);
             }
         }
+
+        // Player status effects
         if (p->stat.status.isBurning && brnCounter < 3) {
             type("You are burning!\n");
             damage = (int)ceil(p->baseStats.hp / 16);
@@ -1028,22 +1643,50 @@ void init_combat(player* p, enemy* e) {
         }
         if (p->stat.status.isParalysed && prsCounter < 3) {
             type("You are paralysed!\n");
-            psnCounter += 1;
+            prsCounter += 1;
         }
-        if (brnCounter == 3) p->stat.status.isBurning = false; brnCounter = 0;
-        if (psnCounter == 3) p->stat.status.isPoisoned = false; psnCounter = 0;
-        if (prsCounter == 3) p->stat.status.isParalysed = false; prsCounter = 0;
+        if (brnCounter == 3) p->stat.status.isBurning = false;
+        if (psnCounter == 3) p->stat.status.isPoisoned = false;
+        if (prsCounter == 3) p->stat.status.isParalysed = false;
+
+        // Summon status effects
+        if (p->activeSummon && p->activeSummon->stat.hp > 0) {
+            if (p->activeSummon->stat.status.isBurning && summonBrnCounter < 3) {
+                type("%s is burning!\n", p->activeSummon->name);
+                damage = (int)ceil(p->activeSummon->baseStats.hp / 16);
+                p->activeSummon->stat.hp -= damage;
+                type("%s took %d damage!\n", p->activeSummon->name, damage);
+                summonBrnCounter += 1;
+            }
+            if (p->activeSummon->stat.status.isPoisoned && summonPsnCounter < 3) {
+                type("%s is poisoned!\n", p->activeSummon->name);
+                damage = (int)ceil(p->activeSummon->baseStats.hp / 16);
+                p->activeSummon->stat.hp -= damage;
+                type("%s took %d damage!\n", p->activeSummon->name, damage);
+                summonPsnCounter += 1;
+            }
+            if (p->activeSummon->stat.status.isParalysed && summonPrsCounter < 3) {
+                type("%s is paralysed!\n", p->activeSummon->name);
+                summonPrsCounter += 1;
+            }
+            if (summonBrnCounter == 3) p->activeSummon->stat.status.isBurning = false;
+            if (summonPsnCounter == 3) p->activeSummon->stat.status.isPoisoned = false;
+            if (summonPrsCounter == 3) p->activeSummon->stat.status.isParalysed = false;
+        }
     }
+
+    // Battle resolution
     if (p->stat.hp <= 0) {
         type("You died!\n");
         p->gameTriggers[isAlive] = false;
-    } 
-    else if (e->stat.hp <= 0) {
+    } else if (e->stat.hp <= 0) {
         type("You killed the %s!\n", e->name);
         xp = (e->xpSeed + e->xpSeed * sqrt(e->lvl / p->lvl)) * 2 * (1 - (p->lvl / MAX_LEVEL));
+        int playerXp = xp / 2;
+        int summonXp = sqrt((xp / 2)*50);
         int i = 0;
-        while(i < e->drops.itemCount) {
-            if(rand() % 100 < e->dropRate[i]) {
+        while (i < e->drops.itemCount) {
+            if (rand() % 100 < e->dropRate[i]) {
                 addItem(p->inv, e->drops.items[i]);
                 type("It dropped %s!\n", e->drops.items[i].name);
             } else {
@@ -1051,17 +1694,40 @@ void init_combat(player* p, enemy* e) {
             }
             i++;
         }
-        p->xp += xp;
-        type("You gained %d XP!\n", xp);
+        p->xp += playerXp;
+        type("You gained %d XP!\n", playerXp);
+        if (p->activeSummon) {
+            p->activeSummon->xp += summonXp;
+            type("%s gained %d XP!\n", p->activeSummon->name, summonXp);
+            if (p->activeSummon->xp >= p->activeSummon->xpbar) {
+                summonLvlUp(p->activeSummon);
+            }
+        }
         p->stat.status.isPoisoned = false;
         p->stat.status.isParalysed = false;
         p->stat.status.isBurning = false;
         p->stat.status.isFrozen = false;
+        if (p->activeSummon) {
+            p->activeSummon->stat.status.isPoisoned = false;
+            p->activeSummon->stat.status.isParalysed = false;
+            p->activeSummon->stat.status.isBurning = false;
+            p->activeSummon->stat.status.isFrozen = false;
+        }
         if (p->xp >= 500) lvlUp(p);
+    }
+
+    // Clean up summon
+    if (p->activeSummon) {
+        free(p->activeSummon->name);
+        for (int i = 0; i < 4; i++) {
+            free(p->activeSummon->moveset[i].name);
+            free(p->activeSummon->moveset[i].debuff);
+        }
+        free(p->activeSummon);
+        p->activeSummon = NULL;
     }
     freeEnemy(e);
 }
-
 enemy* createEnemy(player* p, int enemyIndex) {
     if (enemyIndex == randomEnemy) enemyIndex = rand() % 2;
     enemy* newEnemy = malloc(sizeof(enemy));
@@ -1153,6 +1819,7 @@ player* createPlayer() {
     p->equipment.armour = (item){ .itemType=equipment, .data.equipment = { .isEquipped = false } };
     p->equipment.weapon = (item){ .itemType=equipment, .data.equipment = { .isEquipped = false } };
     p->equipment.accessory = (item){ .itemType=equipment, .data.equipment = { .isEquipped = false } };
+    p->activeSummon = NULL;
 
     return p;
 }
@@ -1425,7 +2092,7 @@ int main() {
     while (currentScene && p->gameTriggers[isAlive]) {
         updateSceneConditions(currentScene, p);
         displayScene(currentScene, p);
-        type("Enter choice (1-%d, 0 to quit, 'i' for inventory, 'p' for stats): ", currentScene->numChoices);
+        type("Enter choice (1-%d, 0 to quit, 'm' for menu): ", currentScene->numChoices);
         if (fgets(input, sizeof(input), stdin) != NULL) {
             input[strcspn(input, "\n")] = '\0';
             bool isEmpty = true;
@@ -1438,21 +2105,13 @@ int main() {
             if (isEmpty) {
                 continue;
             }
-            if (strcmp(input, "i") == 0) {
-                displayInventory(p->inv, p);
-                continue;
-            } else if (strcmp(input, "p") == 0) {
-                type("Your Level: %d\n", p->lvl);
-                type("Your XP: %d\n", p->xp);
-                type("Your HP: %d\n", p->stat.hp);
-                type("Your Atk: %d\n", p->stat.atk);
-                type("Your Def: %d\n", p->stat.def);
-                type("Your Agility: %d\n", p->stat.agility);
+            if (strcmp(input, "m") == 0) {
+                menu(p);
                 continue;
             } else {
                 choice = atoi(input);
                 if (choice < 0 || choice > currentScene->numChoices) {
-                    type("Invalid input! Please enter a number between 0 and %d.\n", currentScene->numChoices);
+                    type("Invalid input! Please enter a number between 0 and %d or 'm'.\n", currentScene->numChoices);
                     continue;
                 }
                 if (choice == 0) break;
