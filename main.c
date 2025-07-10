@@ -14,12 +14,17 @@
 #include <unistd.h>
 #include <termios.h>
 #include <poll.h>
+#include <sys/select.h>
+#include <fcntl.h>
 #endif
 
-// Enums
+// Macros
 #define inventoryCapacity 100
 #define NUM_TRIGGERS 4
 #define MAX_LEVEL 100
+#define SPELL_SIZE_LIMIT 150
+
+//Enums
 
 typedef enum {
     isAlive = 0,
@@ -326,19 +331,19 @@ enemy allEnemy[] = {
         "slime", 50,
         { {"blob attack", 20, 100, 0, "NULL"}, {"electrify", 10, 70, 0, "prs"}, {"acid throw", 10, 70, 1, "psn"}, {"slimy touch", 10, 70, 0, "brn"} },
         1, "normal",
-        { 25, 15, 20, 100, 20, (status){ false, false, false, false } },
+        { 25, 15, 20, 100, 50, (status){ false, false, false, false } },
         .drops = { {0},  0}, {0}
     },
     {
         "goblin", 70,
         { {"bite", 20, 100, 0, "NULL"}, {"spear jab", 30, 50, 1, "NULL"}, {"enrage", 0, 100, -1, "atkBuff"}, {"posion arrow", 20, 80, 2, "psn"} },
         1, "normal",
-        { 15, 15, 25, 100, 20, (status){ false, false, false, false } },
+        { 15, 15, 25, 100, 50, (status){ false, false, false, false } },
         .drops = { {0},  0}, {0}
     },
     {
         "cyclops", 90,
-        { {"club attack", 100, 10, 1, "NULL"}, {"body slam", 50, 30, 0, "NULL"}, {"enrage", 0, 100, -1, "atkBuff"}, {"laser eye", 0, 100, 2, "brn"} },
+        { {"club attack", 100, 30, 1, "NULL"}, {"body slam", 50, 30, 0, "NULL"}, {"enrage", 0, 100, -1, "atkBuff"}, {"laser eye", 0, 100, 2, "brn"} },
         1, "dark",
         { 150, 15, 5, 100, 10, (status){ false, false, false, false } },
         .drops = { {0},  0}, {0}
@@ -1382,6 +1387,65 @@ void menu(player* p) {
     }
 }
 
+char* spellChant(int timeLimit) {
+    int input_received = 0;
+    char input[SPELL_SIZE_LIMIT] = {0};
+    type("Chant your spell within %d seconds:\n", timeLimit);
+#ifdef _WIN32
+    DWORD startTime = GetTickCount();
+    int pos = 0;
+    while(GetTickCount() - startTime < timeLimit * 1000) {
+        if (_kbhit()) {
+            char c = _getch();
+            if (c == '\r' || c == '\n') {
+                input[pos] = '\0';
+                input_received = 1;
+                break;
+            } else if (pos < SPELL_SIZE_LIMIT - 1) {
+                input[pos++] = c;
+                putchar(c);
+                fflush(stdout);
+            }
+        }
+        Sleep(10); // Prevent CPU overuse
+    }
+    // Clear any remaining input
+    while (_kbhit()) _getch();
+#else
+    int stdin_fd = STDIN_FILENO;
+    int flags = fcntl(stdin_fd, F_GETFL);
+    fcntl(stdin_fd, F_SETFL, flags | O_NONBLOCK);
+
+    struct timeval timeout;
+    fd_set readfds;
+
+    FD_ZERO(&readfds);
+    FD_SET(stdin_fd, &readfds);
+
+    timeout.tv_sec = timeLimit;
+    timeout.tv_usec = 0;
+
+    int result = select(stdin_fd + 1, &readfds, NULL, NULL, &timeout);
+
+    if (result > 0 && FD_ISSET(stdin_fd, &readfds)) {
+        if (fgets(input, SPELL_SIZE_LIMIT, stdin) != NULL) {
+            input[strcspn(input, "\n")] = '\0';
+            input_received = 1;
+        }
+    }
+
+    // Clear input buffer
+    int c; while ((c = getchar()) != '\n' && c != EOF);
+
+    fcntl(stdin_fd, F_SETFL, flags);
+#endif
+    if (input_received) {
+        return strdup(input);
+    } else {
+        type("Time's up! You failed to chant the spell.\n");
+        return NULL;
+    }
+}
 
 void type(const char* format, ...) {
     va_list args;
@@ -1442,6 +1506,7 @@ void init_combat(player* p, enemy* e) {
     int xp;
     int moveIndex;
     int distance = 0;
+    int castingTime = 60; // Default casting time for spells
     int brnCounter = 0, psnCounter = 0, prsCounter = 0;
     int summonBrnCounter = 0, summonPsnCounter = 0, summonPrsCounter = 0;
     bool isHit;
@@ -1452,7 +1517,7 @@ void init_combat(player* p, enemy* e) {
             type("%s's HP: %d\n", p->activeSummon->name, p->activeSummon->stat.hp);
         }
         movement = (distance == 0)? "7. Move Backwards\n" : (distance == 1)? "7. Move Backwards\n8. Move Forward\n" : "7. Move Forward\n";
-        type("%s's HP: %d\nWhat do you do?\n1. Attack\n2. Run Away\n3. Pray\n4. Chant\n5. Use Item\n6. Summon\n %s", e->name, e->stat.hp, movement);
+        type("%s's HP: %d\nWhat do you do?\n1. Attack\n2. Run Away\n3. Pray\n4. Chant\n5. Use Item\n6. Summon\n%s", e->name, e->stat.hp, movement);
         char input[10];
         fgets(input, sizeof(input), stdin);
         input[strcspn(input, "\n")] = '\0';
@@ -1553,37 +1618,39 @@ void init_combat(player* p, enemy* e) {
                 }
             }
         } else if (choice == 4) { // Chant
-            char input[100];
-            type("Enter chant: ");
-            fgets(input, sizeof(input), stdin);
-            input[strcspn(input, "\n")] = '\0';
+            castingTime = 60; // Default casting time for spells
+            castingTime = (int)(castingTime * (float)p->stat.agility/e->stat.agility ) + (int)( (distance - 1) * 0.17 * castingTime );
+            char* input = spellChant(castingTime);
             Spell* matched_spell = NULL;
-            for (int i = 0; i < sizeof(allSpells)/sizeof(allSpells[0]); i++) {
+            if (input != NULL) {
+                for (int i = 0; i < sizeof(allSpells)/sizeof(allSpells[0]); i++) {
                 if (strcmp(input, allSpells[i].chant) == 0) {
                     matched_spell = &allSpells[i];
                     break;
                 }
-            }
-            if (!matched_spell) {
-                type("Spell Casting Failed!\n");
-                p->stat.hp -= 10;
-                type("You took 10 damage from magical backlash!\n");
-            } else if (p->xen < matched_spell->xenreq) {
-                type("Spell Casting Failed! (Not enough Xen)\n");
-            } else {
-                p->xen -= matched_spell->xenreq;
-                int damage = matched_spell->basedamage + (5 * p->lvl);
-                e->stat.hp -= damage;
-                type("%s was cast successfully! You did %d damage to the enemy.\n", matched_spell->name, damage);
-                type("Remaining Xen: %d \n", p->xen);
-                if (matched_spell->debuff.isBurning) {
-                    e->stat.status.isBurning = true;
-                    type("The enemy bursts into flames!\n");
                 }
-                if (matched_spell->debuff.isParalysed) {
-                    e->stat.status.isParalysed = true;
-                    type("The enemy is paralyzed!\n");
+                if (!matched_spell) {
+                    type("Spell Casting Failed!\n");
+                    p->stat.hp -= 10;
+                    type("You took 10 damage from magical backlash!\n");
+                } else if (p->xen < matched_spell->xenreq) {
+                    type("Spell Casting Failed! (Not enough Xen)\n");
+                } else {
+                    p->xen -= matched_spell->xenreq;
+                    int damage = matched_spell->basedamage + (5 * p->lvl);
+                    e->stat.hp -= damage;
+                    type("%s was cast successfully! You did %d damage to the enemy.\n", matched_spell->name, damage);
+                    type("Remaining Xen: %d \n", p->xen);
+                    if (matched_spell->debuff.isBurning) {
+                        e->stat.status.isBurning = true;
+                        type("The enemy bursts into flames!\n");
+                    }
+                    if (matched_spell->debuff.isParalysed) {
+                        e->stat.status.isParalysed = true;
+                        type("The enemy is paralyzed!\n");
+                    }
                 }
+                free(input);
             }
         } else if (choice == 5) { // Use Item
             useItemPanel(p, p->inv);
@@ -1665,7 +1732,7 @@ void init_combat(player* p, enemy* e) {
                 distance--;
             }
             else if ((e->stat.status.isParalysed && rand() % 2 == 0) || !e->stat.status.isParalysed) {
-                isHit = (rand() % 100 < e->moveset[moveIndex].acc && distance > e->moveset[moveIndex].range);
+                isHit = (rand() % 100 < e->moveset[moveIndex].acc && (distance <= e->moveset[moveIndex].range) || e->moveset[moveIndex].range == -1);
                 type("%s used %s\n", e->name, e->moveset[moveIndex].name);
                 damage = e->moveset[moveIndex].dmg * (e->stat.atk) / (p->stat.def + 1) + (int)ceil(((rand() % 31) / 100.0) * e->moveset[moveIndex].dmg);
                 damage += (distance >= e->moveset[moveIndex].range)? 0 : damage *  0.2 * (e->moveset[moveIndex].range - distance);
@@ -1720,7 +1787,7 @@ void init_combat(player* p, enemy* e) {
                         }
                     }
                 } else {
-                    if(e->moveset[moveIndex].range > distance) {
+                    if(e->moveset[moveIndex].range >= distance) {
                         if(e->stat.status.isParalysed) {
                             type("%s is paralyzed and can't move!\n", e->name);
                         } else {
