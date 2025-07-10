@@ -49,13 +49,20 @@ typedef enum {
     accessory = 3
 } equipmentType;
 
+typedef enum {
+    melee = 0,
+    midrange = 1,
+    ranged = 2,
+    sureHit = -1,
+} rangeType;
+
 // Structs
 typedef struct {
     char* name;
     int itemType;
     union {
         struct { char* description; int amount; char* effect; int effectAmount; } consumable;
-        struct { int type; int hp, def, atk, agility, acc; bool isEquipped; } equipment;
+        struct { int type; int hp, def, atk, agility, acc, range; bool isEquipped; } equipment;
         struct { char* description; } keyItem;
         struct { int amount; } ingredient;
     } data;
@@ -86,7 +93,7 @@ typedef struct {
     char* name;
     int dmg;
     int acc;
-    int lvlReq;
+    int range;
     char* debuff;
 } move;
 
@@ -317,21 +324,21 @@ item keyItems[] = {
 enemy allEnemy[] = {
     {
         "slime", 50,
-        { {"blob attack", 20, 100, 1, "NULL"}, {"electrify", 10, 70, 1, "prs"}, {"acid throw", 10, 70, 1, "psn"}, {"slimy touch", 10, 70, 0, "brn"} },
+        { {"blob attack", 20, 100, 0, "NULL"}, {"electrify", 10, 70, 0, "prs"}, {"acid throw", 10, 70, 1, "psn"}, {"slimy touch", 10, 70, 0, "brn"} },
         1, "normal",
         { 25, 15, 20, 100, 20, (status){ false, false, false, false } },
         .drops = { {0},  0}, {0}
     },
     {
         "goblin", 70,
-        { {"bite", 20, 100, 1, "NULL"}, {"spear jab", 30, 50, 1, "NULL"}, {"enrage", 0, 100, 1, "atkBuff"}, {"posion arrow", 20, 80, 0, "psn"} },
+        { {"bite", 20, 100, 0, "NULL"}, {"spear jab", 30, 50, 1, "NULL"}, {"enrage", 0, 100, -1, "atkBuff"}, {"posion arrow", 20, 80, 2, "psn"} },
         1, "normal",
         { 15, 15, 25, 100, 20, (status){ false, false, false, false } },
         .drops = { {0},  0}, {0}
     },
     {
         "cyclops", 90,
-        { {"club attack", 100, 10, 1, "NULL"}, {"body slam", 50, 30, 1, "NULL"}, {"enrage", 0, 100, 1, "atkBuff"}, {"laser eye", 0, 100, 0, "brn"} },
+        { {"club attack", 100, 10, 1, "NULL"}, {"body slam", 50, 30, 0, "NULL"}, {"enrage", 0, 100, -1, "atkBuff"}, {"laser eye", 0, 100, 2, "brn"} },
         1, "dark",
         { 150, 15, 5, 100, 10, (status){ false, false, false, false } },
         .drops = { {0},  0}, {0}
@@ -1430,41 +1437,59 @@ void type(const char* format, ...) {
 void init_combat(player* p, enemy* e) {
     if (!e) return;
     type("A level %d %s appears in front of you.\n", e->lvl, e->name);
-int choice;
+    int choice;
     int damage;
     int xp;
     int moveIndex;
+    int distance = 0;
     int brnCounter = 0, psnCounter = 0, prsCounter = 0;
     int summonBrnCounter = 0, summonPsnCounter = 0, summonPrsCounter = 0;
     bool isHit;
+    char* movement;
     while (p->stat.hp > 0 && e->stat.hp > 0) {
         type("Your HP: %d\nXen: %d\n", p->stat.hp, p->xen);
         if (p->activeSummon && p->activeSummon->stat.hp > 0) {
             type("%s's HP: %d\n", p->activeSummon->name, p->activeSummon->stat.hp);
         }
-        type("%s's HP: %d\nWhat do you do?\n1. Attack\n2. Run Away\n3. Pray\n4. Chant\n5. Use Item\n6. Summon\n", e->name, e->stat.hp);
+        movement = (distance == 0)? "7. Move Backwards\n" : (distance == 1)? "7. Move Backwards\n8. Move Forward\n" : "7. Move Forward\n";
+        type("%s's HP: %d\nWhat do you do?\n1. Attack\n2. Run Away\n3. Pray\n4. Chant\n5. Use Item\n6. Summon\n %s", e->name, e->stat.hp, movement);
         char input[10];
         fgets(input, sizeof(input), stdin);
         input[strcspn(input, "\n")] = '\0';
         choice = atoi(input);
-        if (choice < 1 || choice > 6) {
+        if (choice == 8 && distance != 1) {
+            type("Invalid choice.\n");
+            continue;
+        }
+        else if (choice < 1 || choice > 8) {
             type("Invalid choice.\n");
             continue;
         }
 
-        if (choice == 2) { // Run Away
-            if (p->stat.agility > e->stat.agility) {
+        if (choice == 7) {
+            if (distance == 2) {
+                distance--;
+                type("You moved forward.\n");
+                continue;
+            } else if (distance == 1) {
+                distance++;
+                type("You moved backwards.\n");
+            } else if (distance == 0) {
+                distance++;
+                type("You moved backwards.\n");
+            }
+        } 
+        else if (choice == 8 && distance == 1) { 
+                distance--;
+                type("You moved forward.\n");
+        }
+
+        else if (choice == 2) { // Run Away
+            if (p->stat.agility >= (e->stat.agility) * (1 - 0.2 * distance)) {
                 type("Ran away successfully!\n");
                 break;
-            } else if (p->stat.agility < e->stat.agility) {
+            } else{
                 type("%s is too fast. Failed to run away.\n", e->name);
-            } else {
-                if (rand() % 2 == 0) {
-                    type("Ran away successfully!\n");
-                    break;
-                } else {
-                    type("%s is too fast. Failed to run away.\n", e->name);
-                }
             }
         } else if (choice == 1) { // Attack
             if (p->stat.status.isParalysed && rand() % 2 == 0) {
@@ -1635,61 +1660,76 @@ int choice;
         // Enemy's turn
         if (e->stat.hp > 0) {
             moveIndex = rand() % 4;
-            isHit = (rand() % 100 < e->moveset[moveIndex].acc);
-            type("%s used %s\n", e->name, e->moveset[moveIndex].name);
-            damage = e->moveset[moveIndex].dmg * (e->stat.atk) / (p->stat.def + 1) + (int)ceil(((rand() % 31) / 100.0) * e->moveset[moveIndex].dmg);
-            if (damage < 0) damage = 0;
-            if (isHit) {
-                bool targetSummon = (p->activeSummon && p->activeSummon->stat.hp > 0 && rand() % 2 == 0);
-                if (targetSummon) {
-                    if (!strcmp(e->moveset[moveIndex].debuff, "NULL")) {
-                        p->activeSummon->stat.hp -= damage;
-                        type("%s took %d damage!\n", p->activeSummon->name, damage);
-                    } else if (!strcmp(e->moveset[moveIndex].debuff, "brn")) {
-                        p->activeSummon->stat.status.isBurning = true;
-                        summonBrnCounter = 0;
-                        p->activeSummon->stat.hp -= damage;
-                        type("%s took %d damage!\n", p->activeSummon->name, damage);
-                    } else if (!strcmp(e->moveset[moveIndex].debuff, "psn")) {
-                        p->activeSummon->stat.status.isPoisoned = true;
-                        summonPsnCounter = 0;
-                        p->activeSummon->stat.hp -= damage;
-                        type("%s took %d damage!\n", p->activeSummon->name, damage);
-                    } else if (!strcmp(e->moveset[moveIndex].debuff, "prs")) {
-                        p->activeSummon->stat.status.isParalysed = true;
-                        summonPrsCounter = 0;
-                        p->activeSummon->stat.hp -= damage;
-                        type("%s took %d damage!\n", p->activeSummon->name, damage);
-                    } else if (!strcmp(e->moveset[moveIndex].debuff, "atkBuff")) {
-                        e->stat.atk += 10;
-                        type("%s's attack went up!\n", e->name);
+            if (distance > 0 && rand()%2 == 0) {
+                type("%s moved closer!\n", e->name);
+                distance--;
+            }
+            else if ((e->stat.status.isParalysed && rand() % 2 == 0) || !e->stat.status.isParalysed) {
+                isHit = (rand() % 100 < e->moveset[moveIndex].acc && distance > e->moveset[moveIndex].range);
+                type("%s used %s\n", e->name, e->moveset[moveIndex].name);
+                damage = e->moveset[moveIndex].dmg * (e->stat.atk) / (p->stat.def + 1) + (int)ceil(((rand() % 31) / 100.0) * e->moveset[moveIndex].dmg);
+                damage += (distance >= e->moveset[moveIndex].range)? 0 : damage *  0.2 * (e->moveset[moveIndex].range - distance);
+                if (damage < 0) damage = 0;
+                if (isHit) {
+                    bool targetSummon = (p->activeSummon && p->activeSummon->stat.hp > 0 && rand() % 2 == 0);
+                    if (targetSummon) {
+                        if (!strcmp(e->moveset[moveIndex].debuff, "NULL")) {
+                            p->activeSummon->stat.hp -= damage;
+                            type("%s took %d damage!\n", p->activeSummon->name, damage);
+                        } else if (!strcmp(e->moveset[moveIndex].debuff, "brn")) {
+                            p->activeSummon->stat.status.isBurning = true;
+                            summonBrnCounter = 0;
+                            p->activeSummon->stat.hp -= damage;
+                            type("%s took %d damage!\n", p->activeSummon->name, damage);
+                        } else if (!strcmp(e->moveset[moveIndex].debuff, "psn")) {
+                            p->activeSummon->stat.status.isPoisoned = true;
+                            summonPsnCounter = 0;
+                            p->activeSummon->stat.hp -= damage;
+                            type("%s took %d damage!\n", p->activeSummon->name, damage);
+                        } else if (!strcmp(e->moveset[moveIndex].debuff, "prs")) {
+                            p->activeSummon->stat.status.isParalysed = true;
+                            summonPrsCounter = 0;
+                            p->activeSummon->stat.hp -= damage;
+                            type("%s took %d damage!\n", p->activeSummon->name, damage);
+                        } else if (!strcmp(e->moveset[moveIndex].debuff, "atkBuff")) {
+                            e->stat.atk += 10;
+                            type("%s's attack went up!\n", e->name);
+                        }
+                    } else {
+                        if (!strcmp(e->moveset[moveIndex].debuff, "NULL")) {
+                            p->stat.hp -= damage;
+                            type("You took %d damage!\n", damage);
+                        } else if (!strcmp(e->moveset[moveIndex].debuff, "brn")) {
+                            p->stat.status.isBurning = true;
+                            brnCounter = 0;
+                            p->stat.hp -= damage;
+                            type("You took %d damage!\n", damage);
+                        } else if (!strcmp(e->moveset[moveIndex].debuff, "psn")) {
+                            p->stat.status.isPoisoned = true;
+                            psnCounter = 0;
+                            p->stat.hp -= damage;
+                            type("You took %d damage!\n", damage);
+                        } else if (!strcmp(e->moveset[moveIndex].debuff, "prs")) {
+                            p->stat.status.isParalysed = true;
+                            prsCounter = 0;
+                            p->stat.hp -= damage;
+                            type("You took %d damage!\n", damage);
+                        } else if (!strcmp(e->moveset[moveIndex].debuff, "atkBuff")) {
+                            e->stat.atk += 10;
+                            type("%s's attack went up!\n", e->name);
+                        }
                     }
                 } else {
-                    if (!strcmp(e->moveset[moveIndex].debuff, "NULL")) {
-                        p->stat.hp -= damage;
-                        type("You took %d damage!\n", damage);
-                    } else if (!strcmp(e->moveset[moveIndex].debuff, "brn")) {
-                        p->stat.status.isBurning = true;
-                        brnCounter = 0;
-                        p->stat.hp -= damage;
-                        type("You took %d damage!\n", damage);
-                    } else if (!strcmp(e->moveset[moveIndex].debuff, "psn")) {
-                        p->stat.status.isPoisoned = true;
-                        psnCounter = 0;
-                        p->stat.hp -= damage;
-                        type("You took %d damage!\n", damage);
-                    } else if (!strcmp(e->moveset[moveIndex].debuff, "prs")) {
-                        p->stat.status.isParalysed = true;
-                        prsCounter = 0;
-                        p->stat.hp -= damage;
-                        type("You took %d damage!\n", damage);
-                    } else if (!strcmp(e->moveset[moveIndex].debuff, "atkBuff")) {
-                        e->stat.atk += 10;
-                        type("%s's attack went up!\n", e->name);
+                    if(e->moveset[moveIndex].range > distance) {
+                        if(e->stat.status.isParalysed) {
+                            type("%s is paralyzed and can't move!\n", e->name);
+                        } else {
+                            type("%s missed!\n", e->name);
+                        }
+                    } else {
+                        type("%s was too far from you\n", e->name);
                     }
                 }
-            } else {
-                type("%s missed!\n", e->name);
             }
         }
 
@@ -1821,7 +1861,7 @@ enemy* createEnemy(player* p, int enemyIndex) {
             newEnemy->moveset[i].name = strdup(allEnemy[enemyIndex].moveset[i].name);
             newEnemy->moveset[i].dmg = allEnemy[enemyIndex].moveset[i].dmg;
             newEnemy->moveset[i].acc = allEnemy[enemyIndex].moveset[i].acc;
-            newEnemy->moveset[i].lvlReq = allEnemy[enemyIndex].moveset[i].lvlReq;
+            newEnemy->moveset[i].range = allEnemy[enemyIndex].moveset[i].range;
             newEnemy->moveset[i].debuff = strdup(allEnemy[enemyIndex].moveset[i].debuff);
         }
     }
