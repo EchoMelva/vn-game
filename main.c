@@ -332,7 +332,7 @@ item consumables[] = {
     {"Elixir", consumable, {.consumable = {"Restores all HP and Xen", 1, "fullRecovery", 0}}}
 };
 item equipments[] = {
-    {"Rusty Axe", equipment, {.equipment = {weapon, 0, 0, 10, 0, 100, false}}},
+    {"Rusty Axe", equipment, {.equipment = {weapon, 0, 0, 10, 0, 100, 1, false}}},
     {"Leather Armor", equipment, {.equipment = {armour, 5, 3, 0, 0, 0, false}}}
 };
 item keyItems[] = {
@@ -689,13 +689,14 @@ void displayInventory(inventory* inv, player* p) {
                 for (int i = 0; i < inv->itemCount; i++) {
                     if (inv->items[i].itemType == equipment) {
                         hasItems = true;
-                        type("%d. %s (HP: %d, DEF: %d, ATK: %d, Agility: %d, ACC: %d, Equipped: %s)\n",
+                        type("%d. %s (HP: %d, DEF: %d, ATK: %d, Agility: %d, ACC: %d, Range: %s, Equipped: %s)\n",
                              equipmentNum + 1, inv->items[i].name,
                              inv->items[i].data.equipment.hp,
                              inv->items[i].data.equipment.def,
                              inv->items[i].data.equipment.atk,
                              inv->items[i].data.equipment.agility,
                              inv->items[i].data.equipment.acc,
+                             (inv->items[i].data.equipment.range == 2)? "Ranged" : (inv->items[i].data.equipment.range == 1)? "Midrange" : "Melee",
                              inv->items[i].data.equipment.isEquipped ? "Yes" : "No");
                     }
                     equipmentNum++;
@@ -901,6 +902,7 @@ void unequipItem(player* p, int equipmentType) {
                 p->equipment.weapon.data.equipment.def = 0;
                 p->equipment.weapon.data.equipment.acc = 0;
                 p->equipment.weapon.data.equipment.agility = 0;
+                p->equipment.weapon.data.equipment.range = 0; // Reset range
                 p->equipment.weapon.data.equipment.isEquipped = false;
                 type("Unequipped %s\n", name);
             } else {
@@ -962,12 +964,14 @@ void equipItem(player* p, item* item) {
             if (p->equipment.helmet.data.equipment.isEquipped) {
                 unequipItem(p, helmet);
             }
+            p->equipment.helmet.name = strdup(item->name);
             p->equipment.helmet = *item;
             break;
         case armour:
             if (p->equipment.armour.data.equipment.isEquipped) {
                 unequipItem(p, armour);
             }
+            p->equipment.armour.name = strdup(item->name);
             p->equipment.armour = *item;
             break;
         case weapon:
@@ -981,6 +985,7 @@ void equipItem(player* p, item* item) {
             if (p->equipment.accessory.data.equipment.isEquipped) {
                 unequipItem(p, accessory);
             }
+            p->equipment.accessory.name = strdup(item->name);
             p->equipment.accessory = *item;
             break;
         default:
@@ -1290,11 +1295,12 @@ void menu(player* p) {
                          p->equipment.armour.data.equipment.atk, p->equipment.armour.data.equipment.agility,
                          p->equipment.armour.data.equipment.acc,
                          p->equipment.armour.data.equipment.isEquipped ? "Yes" : "No");
-                    type("3. Weapon: %s (HP: %d, Def: %d, Atk: %d, Agility: %d, Acc: %d, Equipped: %s)\n",
+                    type("3. Weapon: %s (HP: %d, Def: %d, Atk: %d, Agility: %d, Acc: %d, Range: %s, Equipped: %s)\n",
                          p->equipment.weapon.name ? p->equipment.weapon.name : "None",
                          p->equipment.weapon.data.equipment.hp, p->equipment.weapon.data.equipment.def,
                          p->equipment.weapon.data.equipment.atk, p->equipment.weapon.data.equipment.agility,
                          p->equipment.weapon.data.equipment.acc,
+                         (p->equipment.weapon.data.equipment.range == 2)? "Ranged" : (p->equipment.weapon.data.equipment.range == 1)? "Middle" : "Melee",
                          p->equipment.weapon.data.equipment.isEquipped ? "Yes" : "No");
                     type("4. Accessory: %s (HP: %d, Def: %d, Atk: %d, Agility: %d, Acc: %d, Equipped: %s)\n",
                          p->equipment.accessory.name ? p->equipment.accessory.name : "None",
@@ -1322,11 +1328,12 @@ void menu(player* p) {
                             if (p->inv->items[i].itemType == equipment && !p->inv->items[i].data.equipment.isEquipped) {
                                 equipmentIndices[equipmentCount] = i;
                                 equipmentCount++;
-                                type("%d. %s (HP: %d, Def: %d, Atk: %d, Agility: %d, Acc: %d)\n",
+                                type("%d. %s (HP: %d, Def: %d, Atk: %d, Agility: %d, Acc: %d, Range: %s)\n",
                                      equipmentCount, p->inv->items[i].name,
                                      p->inv->items[i].data.equipment.hp, p->inv->items[i].data.equipment.def,
                                      p->inv->items[i].data.equipment.atk, p->inv->items[i].data.equipment.agility,
-                                     p->inv->items[i].data.equipment.acc);
+                                     p->inv->items[i].data.equipment.acc, p->inv->items[i].data.equipment.range == 2 ? "Ranged" :
+                                     (p->inv->items[i].data.equipment.range == 1 ? "Middle" : "Melee"));
                             }
                         }
                         if (equipmentCount == 0) {
@@ -1543,26 +1550,27 @@ EnemyMoveDecision chooseEnemyMove(player* p, enemy* e, int distance) {
     // Score each move
     for (int i = 0; i < 4; i++) {
         // Range check: +20 if move matches distance or is sureHit, else set desired distance
+        // This ensures that moves that can be played this turn without moving are preferred
         if (e->moveset[i].range == -1 || e->moveset[i].range == distance) {
             moveScore[i] += 20.0f;
         } else {
             desiredDistances[i] = e->moveset[i].range; // Plan to move to this range
             if (e->aiStrategy == ranger && e->moveset[i].range < distance) {
-                moveScore[i] -= 10.0f; // Kiter prefers staying at range
+                moveScore[i] -= 10.0f; // ranger prefers staying at range
             }
         }
 
         // Damage scoring: high damage prioritized when target HP is low
-        float targetHpRatio = targetSummon ?
-            (float)p->activeSummon->stat.hp / p->activeSummon->baseStats.hp :
-            (float)p->stat.hp / p->baseStats.hp;
+        float targetHpRatio = targetSummon ? //checks whether to target summon or player
+            (float)p->activeSummon->stat.hp / p->activeSummon->baseStats.hp : //if yes then takes their hp ratio 
+            (float)p->stat.hp / p->baseStats.hp; // else takes player hp ratio
         if (targetHpRatio < 0.3f) {
             moveScore[i] += e->moveset[i].dmg * 1.5f; // Boost for finishing blow
         } else {
             moveScore[i] += e->moveset[i].dmg * (e->moveset[i].acc / 100.0f);
         }
 
-        // Debuff scoring: +15 for new debuffs, +25 for DEBUFFER strategy
+        // Debuff scoring: +15 for new debuffs, +25 for debuffer strategy
         for (int j = 0; j < 4; j++) {
             if (strcmp(e->moveset[i].debuff, debuffList[j]) == 0) {
                 bool debuffNotActive = targetSummon ? !summonDebuffActive[j] : !debuffActive[j];
@@ -1583,21 +1591,17 @@ EnemyMoveDecision chooseEnemyMove(player* p, enemy* e, int distance) {
 
         // Strategy-specific scoring
         if (e->aiStrategy == ranger && e->moveset[i].range == 2) {
-            moveScore[i] += 15.0f; // Kiter prefers ranged moves
+            moveScore[i] += 15.0f; // ranger prefers ranged moves
         }
         if (e->aiStrategy == tank && e->moveset[i].dmg > 50) {
-            moveScore[i] += 20.0f; // Aggressive prefers high-damage moves
+            moveScore[i] += 20.0f; // tank prefers high-damage moves
         }
+        // not necessary for now
+        // // Xen check: prioritize damage if player Xen is low (<20%)
+        // if (p->xen < p->baseXen * 0.2f && e->moveset[i].dmg > 0) {
+        //     moveScore[i] += 10.0f; // Exploit low Xen
+        // }
 
-        // Xen check: prioritize damage if player Xen is low (<20%)
-        if (p->xen < p->baseXen * 0.2f && e->moveset[i].dmg > 0) {
-            moveScore[i] += 10.0f; // Exploit low Xen
-        }
-
-        // Enemy status penalty: reduce score if enemy is paralyzed
-        if (e->stat.status.isParalysed) {
-            moveScore[i] *= 0.5f;
-        }
     }
 
     // Sort moves by score (bubble sort for simplicity)
@@ -1614,11 +1618,11 @@ EnemyMoveDecision chooseEnemyMove(player* p, enemy* e, int distance) {
         }
     }
 
-    // Controlled randomness: 80% best move, 15% second-best, 5% random
+    // Controlled randomness: 95% best move, 4% second-best, 1% random
     int randVal = rand() % 100;
-    if (randVal < 80) {
+    if (randVal < 95) {
         return (EnemyMoveDecision){moveIndices[0], desiredDistances[0]};
-    } else if (randVal < 95 && moveScore[moveIndices[1]] > -50.0f) {
+    } else if (randVal < 99 && moveScore[moveIndices[1]] > -50.0f) {
         return (EnemyMoveDecision){moveIndices[1], desiredDistances[1]};
     } else {
         int randomIndex = rand() % 4;
@@ -1640,7 +1644,7 @@ void init_combat(player* p, enemy* e) {
     bool isHit;
     char* movement;
     while (p->stat.hp > 0 && e->stat.hp > 0) {
-        type("Your HP: %d\nXen: %d\n", p->stat.hp, p->xen);
+        type("Your HP: %d\nXen: %d\nDistance: %d\n", p->stat.hp, p->xen, distance);
         if (p->activeSummon && p->activeSummon->stat.hp > 0) {
             type("%s's HP: %d\n", p->activeSummon->name, p->activeSummon->stat.hp);
         }
@@ -1685,14 +1689,20 @@ void init_combat(player* p, enemy* e) {
                 type("%s is too fast. Failed to run away.\n", e->name);
             }
         } else if (choice == 1) { // Attack
-            if (p->stat.status.isParalysed && rand() % 2 == 0) {
-                type("You are paralyzed, you can't move.\n");
-            } else {
-                type("You attacked the %s!\n", e->name);
-                damage = p->stat.atk - e->stat.def + (int)ceil(((rand() % 31) / 100.0) * p->stat.atk);
-                if (damage < 0) damage = 0;
-                e->stat.hp -= damage;
-                type("You did %d damage!\n", damage);
+            if(p->equipment.weapon.data.equipment.range >= distance) {
+                if (p->stat.status.isParalysed && rand() % 2 == 0) {
+                    type("You are paralyzed, you can't move.\n");
+                } else {
+                    type("You attacked the %s!\n", e->name);
+                    damage = p->stat.atk - e->stat.def + (int)ceil(((rand() % 31) / 100.0) * p->stat.atk);
+                    damage += (p->equipment.weapon.data.equipment.range == distance)? (int)(damage * 0.5) : 0;
+                    if (damage < 0) damage = 0;
+                    e->stat.hp -= damage;
+                    type("You did %d damage!\n", damage);
+                }
+            }
+            else{
+                type("You are too far away to attack with your current weapon.\n");
             }
         } else if (choice == 3) { // Pray
             int prayerOutcome = rand() % 2;
@@ -1857,88 +1867,91 @@ void init_combat(player* p, enemy* e) {
             EnemyMoveDecision decision = chooseEnemyMove(p, e, distance);
             moveIndex = decision.moveIndex;
             // Adjust distance if needed and possible
-            if (decision.desiredDistance != distance && !(e->stat.status.isParalysed && rand() % 2 == 0)) {
-                if (decision.desiredDistance < distance) {
-                    if (distance > 0) {
-                        distance--;
-                        type("%s moved closer!\n", e->name);
+            if(!(e->stat.status.isParalysed && rand() % 2 == 0)){
+                if (decision.desiredDistance != distance) {
+                    if (decision.desiredDistance < distance) {
+                        if (distance > 0) {
+                            distance--;
+                            type("%s moved closer!\n", e->name);
+                        }
+                    } else if (decision.desiredDistance > distance) {
+                        if (distance < 2) {
+                            distance++;
+                            type("%s moved back!\n", e->name);
+                        }
                     }
-                } else if (decision.desiredDistance > distance) {
-                    if (distance < 2) {
-                        distance++;
-                        type("%s moved back!\n", e->name);
+                }
+                else{
+                    isHit = (rand() % 100 < e->moveset[moveIndex].acc &&
+                            (distance <= e->moveset[moveIndex].range || e->moveset[moveIndex].range == -1));
+                    type("%s used %s\n", e->name, e->moveset[moveIndex].name);
+                    damage = e->moveset[moveIndex].dmg * (e->stat.atk) / (p->stat.def + 1) +
+                            (int)ceil(((rand() % 31) / 100.0) * e->moveset[moveIndex].dmg);
+                    damage += (distance == e->moveset[moveIndex].range) ? (int)damage*0.5 : 0; // +50% damage if at optimal range
+                    if (damage < 0) damage = 0;
+                    
+                    if (isHit) {
+                        bool targetSummon = (p->activeSummon && p->activeSummon->stat.hp > 0 &&
+                                            (p->activeSummon->stat.atk > p->stat.atk ||
+                                            p->activeSummon->stat.hp < p->stat.hp * 0.5));
+                        if (targetSummon) {
+                            if (!strcmp(e->moveset[moveIndex].debuff, "NULL")) {
+                                p->activeSummon->stat.hp -= damage;
+                                type("%s took %d damage!\n", p->activeSummon->name, damage);
+                            } else if (!strcmp(e->moveset[moveIndex].debuff, "brn")) {
+                                p->activeSummon->stat.status.isBurning = true;
+                                summonBrnCounter = 0;
+                                p->activeSummon->stat.hp -= damage;
+                                type("%s took %d damage and is burning!\n", p->activeSummon->name, damage);
+                            } else if (!strcmp(e->moveset[moveIndex].debuff, "psn")) {
+                                p->activeSummon->stat.status.isPoisoned = true;
+                                summonPsnCounter = 0;
+                                p->activeSummon->stat.hp -= damage;
+                                type("%s took %d damage and is poisoned!\n", p->activeSummon->name, damage);
+                            } else if (!strcmp(e->moveset[moveIndex].debuff, "prs")) {
+                                p->activeSummon->stat.status.isParalysed = true;
+                                summonPrsCounter = 0;
+                                p->activeSummon->stat.hp -= damage;
+                                type("%s took %d damage and is paralyzed!\n", p->activeSummon->name, damage);
+                            } else if (!strcmp(e->moveset[moveIndex].debuff, "atkBuff")) {
+                                e->stat.atk += 10;
+                                type("%s's attack went up!\n", e->name);
+                            }
+                        } else {
+                            if (!strcmp(e->moveset[moveIndex].debuff, "NULL")) {
+                                p->stat.hp -= damage;
+                                type("You took %d damage!\n", damage);
+                            } else if (!strcmp(e->moveset[moveIndex].debuff, "brn")) {
+                                p->stat.status.isBurning = true;
+                                brnCounter = 0;
+                                p->stat.hp -= damage;
+                                type("You took %d damage and are burning!\n", damage);
+                            } else if (!strcmp(e->moveset[moveIndex].debuff, "psn")) {
+                                p->stat.status.isPoisoned = true;
+                                psnCounter = 0;
+                                p->stat.hp -= damage;
+                                type("You took %d damage and are poisoned!\n", damage);
+                            } else if (!strcmp(e->moveset[moveIndex].debuff, "prs")) {
+                                p->stat.status.isParalysed = true;
+                                prsCounter = 0;
+                                p->stat.hp -= damage;
+                                type("You took %d damage and are paralyzed!\n", damage);
+                            } else if (!strcmp(e->moveset[moveIndex].debuff, "atkBuff")) {
+                                e->stat.atk += 10;
+                                type("%s's attack went up!\n", e->name);
+                            }
+                        }
+                    } else {
+                        if (e->moveset[moveIndex].range >= distance || e->moveset[moveIndex].range == -1) {
+                            type("%s missed!\n", e->name);
+                        } else {
+                            type("%s was too far from you\n", e->name);
+                        }
                     }
                 }
             }
-            else if (!(e->stat.status.isParalysed && rand() % 2 == 0)) {
-                isHit = (rand() % 100 < e->moveset[moveIndex].acc &&
-                         (distance == e->moveset[moveIndex].range || e->moveset[moveIndex].range == -1));
-                type("%s used %s\n", e->name, e->moveset[moveIndex].name);
-                damage = e->moveset[moveIndex].dmg * (e->stat.atk) / (p->stat.def + 1) +
-                         (int)ceil(((rand() % 31) / 100.0) * e->moveset[moveIndex].dmg);
-                if (damage < 0) damage = 0;
-                if (isHit) {
-                    bool targetSummon = (p->activeSummon && p->activeSummon->stat.hp > 0 &&
-                                        (p->activeSummon->stat.atk > p->stat.atk ||
-                                         p->activeSummon->stat.hp < p->stat.hp * 0.5));
-                    if (targetSummon) {
-                        if (!strcmp(e->moveset[moveIndex].debuff, "NULL")) {
-                            p->activeSummon->stat.hp -= damage;
-                            type("%s took %d damage!\n", p->activeSummon->name, damage);
-                        } else if (!strcmp(e->moveset[moveIndex].debuff, "brn")) {
-                            p->activeSummon->stat.status.isBurning = true;
-                            summonBrnCounter = 0;
-                            p->activeSummon->stat.hp -= damage;
-                            type("%s took %d damage and is burning!\n", p->activeSummon->name, damage);
-                        } else if (!strcmp(e->moveset[moveIndex].debuff, "psn")) {
-                            p->activeSummon->stat.status.isPoisoned = true;
-                            summonPsnCounter = 0;
-                            p->activeSummon->stat.hp -= damage;
-                            type("%s took %d damage and is poisoned!\n", p->activeSummon->name, damage);
-                        } else if (!strcmp(e->moveset[moveIndex].debuff, "prs")) {
-                            p->activeSummon->stat.status.isParalysed = true;
-                            summonPrsCounter = 0;
-                            p->activeSummon->stat.hp -= damage;
-                            type("%s took %d damage and is paralyzed!\n", p->activeSummon->name, damage);
-                        } else if (!strcmp(e->moveset[moveIndex].debuff, "atkBuff")) {
-                            e->stat.atk += 10;
-                            type("%s's attack went up!\n", e->name);
-                        }
-                    } else {
-                        if (!strcmp(e->moveset[moveIndex].debuff, "NULL")) {
-                            p->stat.hp -= damage;
-                            type("You took %d damage!\n", damage);
-                        } else if (!strcmp(e->moveset[moveIndex].debuff, "brn")) {
-                            p->stat.status.isBurning = true;
-                            brnCounter = 0;
-                            p->stat.hp -= damage;
-                            type("You took %d damage and are burning!\n", damage);
-                        } else if (!strcmp(e->moveset[moveIndex].debuff, "psn")) {
-                            p->stat.status.isPoisoned = true;
-                            psnCounter = 0;
-                            p->stat.hp -= damage;
-                            type("You took %d damage and are poisoned!\n", damage);
-                        } else if (!strcmp(e->moveset[moveIndex].debuff, "prs")) {
-                            p->stat.status.isParalysed = true;
-                            prsCounter = 0;
-                            p->stat.hp -= damage;
-                            type("You took %d damage and are paralyzed!\n", damage);
-                        } else if (!strcmp(e->moveset[moveIndex].debuff, "atkBuff")) {
-                            e->stat.atk += 10;
-                            type("%s's attack went up!\n", e->name);
-                        }
-                    }
-                } else {
-                    if (e->moveset[moveIndex].range == distance || e->moveset[moveIndex].range == -1) {
-                        if (e->stat.status.isParalysed) {
-                            type("%s is paralyzed and can't move!\n", e->name);
-                        } else {
-                            type("%s missed!\n", e->name);
-                        }
-                    } else {
-                        type("%s was too far from you\n", e->name);
-                    }
-                }
+            else {
+                type("%s is paralyzed and can't move!\n", e->name);
             }
         }
 
