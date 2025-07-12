@@ -252,10 +252,7 @@ typedef struct scene scene;
 typedef struct {
     inventory* inv;
     bool gameTriggers[NUM_TRIGGERS];
-    int lvl;
-    int xp;
-    int xen;
-    int baseXen;
+    int lvl, xp, xen, baseXen, currency;
     stats stat;
     stats baseStats;
     Summon* activeSummon;
@@ -323,6 +320,22 @@ typedef struct {
 } enemy;
 
 // Item arrays
+
+typedef enum {
+    hpPotion,
+    xenPotion,
+    poisonCure,
+    paralysisCure,
+    burnCure,
+    elixir
+} consumablesNum;
+typedef enum {
+    rustyAxe,
+    leatherArmor,
+    woodenSpear,
+    goblinSkullHelmet,
+    cyclopsClub
+} equipmentsNum;
 item consumables[] = {
     {"Health Potion", consumable, {.consumable = {"Restores 50 HP", 1, "hpRecovery", 50}}},
     {"Xen Potion", consumable, {.consumable = {"Restores 30 xen", 1, "xenRecovery", 30}}},
@@ -332,8 +345,11 @@ item consumables[] = {
     {"Elixir", consumable, {.consumable = {"Restores all HP and Xen", 1, "fullRecovery", 0}}}
 };
 item equipments[] = {
-    {"Rusty Axe", equipment, {.equipment = {weapon, 0, 0, 10, 0, 100, 1, false}}},
-    {"Leather Armor", equipment, {.equipment = {armour, 5, 3, 0, 0, 0, false}}}
+    {"Rusty Axe", equipment, {.equipment = {weapon, 0, 0, 10, 0, 80, 1, false}}},
+    {"Leather Armor", equipment, {.equipment = {armour, 5, 3, 0, 0, 0, false}}},
+    {"Wooden Spear", equipment, {.equipment = {weapon, 0, 0, 8, 0, 100, 2, false}}},
+    {"Goblin Skull Helmet", equipment, {.equipment = {armour, 10, 5, 0, 0, 0, false}}},
+    {"Cyclops Club", equipment, {.equipment = {weapon, 0, 0, 25, 0, 70, 1, false}}}
 };
 item keyItems[] = {
     {"Key1", keyItem, {.keyItem = {"A key to unlock the gate."}}}
@@ -390,8 +406,82 @@ void equipItem(player* p, item* item);
 void unequipItem(player* p, int equipmentType);
 void useItem(player* p, item* item);
 void useItemPanel(player* p, inventory* inv);
+void freeInventory(inventory* inv);
+EnemyMoveDecision chooseEnemyMove(player* p, enemy* e, int distance);
+char* spellChant(int timeLimit);
+void shop(player* p);
 
 // Function implementations
+void shop(player* p) {
+    if (!p) {
+        type("Error: Null player in shop function\n");
+        return;
+    }
+    type("Welcome to the shop! You have %d Currency.\n", p->currency);
+    item itemList[] = {
+        consumables[hpPotion],
+        consumables[xenPotion],
+        consumables[poisonCure],
+        consumables[paralysisCure],
+        consumables[burnCure],
+        consumables[elixir],
+        equipments[woodenSpear],
+        equipments[goblinSkullHelmet],
+        equipments[cyclopsClub],
+    };
+    int priceList[] = {
+        50,  // Health Potion
+        30,  // Xen Potion
+        20,  // Poison Cure
+        20,  // Paralysis Cure
+        20,  // Burn Cure
+        100, // Elixir
+        250, // Wooden Spear
+        200, // Goblin Skull Helmet
+        500  // Cyclops Club
+    };
+    while (true) {
+        type("Available items:\n");
+        for (int i = 0; i < sizeof(itemList) / sizeof(itemList[0]); i++) {
+            type("%d. %s - %d Currency\n", i + 1, itemList[i].name, priceList[i]);
+        }
+        type("Enter the number of the item to buy (or 0 to exit):\n");
+        int choice = -1;
+        while (choice < 0 || choice > sizeof(itemList) / sizeof(itemList[0])) {
+            scanf(" %d", &choice);
+            if (choice < 0 || choice > sizeof(itemList) / sizeof(itemList[0])) {
+                type("Invalid choice. Please enter a number between 1 and %d or 0 to exit.\n", sizeof(itemList) / sizeof(itemList[0]));
+            }
+        }
+        if (choice == 0) break;
+        type("How many %s do you want to buy?\n", itemList[choice - 1].name);
+        int quantity = -1;
+        while (quantity < 1) {
+            scanf(" %d", &quantity);
+            if (quantity == 0){
+                break;
+            }
+            else if (quantity < 1) {
+                type("Invalid quantity. Please enter a positive number.\n");
+            }
+            
+        }
+        if (p->currency >= priceList[choice - 1] * quantity) {
+            for (int i = 0; i < quantity; i++) {
+                if (p->inv->itemCount >= inventoryCapacity) {
+                    type("Inventory is full! Cannot buy more items.\n");
+                    break;
+                }
+                addItem(p->inv, itemList[choice - 1]);
+            }
+            p->currency -= priceList[choice - 1] * quantity;
+            type("You bought %d %s for %d money.\n", quantity, itemList[choice - 1].name, priceList[choice - 1]);
+        } else {
+            type("You don't have enough money to buy %s.\n", itemList[choice - 1].name);
+        }
+    }
+}
+
 inventory* createInventory() {
     inventory* inv = (inventory*)malloc(sizeof(inventory));
     if (inv != NULL) {
@@ -407,6 +497,7 @@ inventory* createInventory() {
     }
     return inv;
 }
+
 void addItem(inventory* inv, item newItem) {
     if (!inv || !newItem.name) {
         type("Error: Invalid inventory or item name\n");
@@ -1039,7 +1130,6 @@ void lvlUp(player* p) {
     type("Agility: %d\n", p->baseStats.agility);
 }
 
-
 void summonLvlUp(Summon* s) {
     if (!s) return;
     type("%s leveled up!\nNow level %d!\n", s->name, s->lvl + 1);
@@ -1059,7 +1149,6 @@ void summonLvlUp(Summon* s) {
     type("Def: %d\n", s->baseStats.def);
     type("Agility: %d\n", s->baseStats.agility);
 }
-
 
 void manageSummons(player* p) {
     if (!p) {
@@ -1218,7 +1307,6 @@ void manageSummons(player* p) {
     }
 }
 
-
 void menu(player* p) {
     if (!p) {
         type("Error: Invalid player\n");
@@ -1277,8 +1365,8 @@ void menu(player* p) {
                 displayInventory(p->inv, p);
                 break;
             case 3: // Player Stats
-                type("Player Stats:\nLevel: %d\nXP: %d\nHP: %d\nAttack: %d\nDefense: %d\nAgility: %d\nXen: %d\n",
-                     p->lvl, p->xp, p->stat.hp, p->stat.atk, p->stat.def, p->stat.agility, p->xen);
+                type("Player Stats:\nLevel: %d\nXP: %d\nHP: %d\nAttack: %d\nDefense: %d\nAgility: %d\nXen: %d\nCurrency: %d\n",
+                     p->lvl, p->xp, p->stat.hp, p->stat.atk, p->stat.def, p->stat.agility, p->xen, p->currency);
                 break;
             case 4: // Equipment
                 while (true) {
@@ -1414,7 +1502,7 @@ char* spellChant(int timeLimit) {
     int input_received = 0;
     char input[SPELL_SIZE_LIMIT] = {0};
     type("Chant your spell within %d seconds:\n", timeLimit);
-#ifdef _WIN32
+    #ifdef _WIN32
     DWORD startTime = GetTickCount();
     int pos = 0;
     while(GetTickCount() - startTime < timeLimit * 1000) {
@@ -1434,7 +1522,7 @@ char* spellChant(int timeLimit) {
     }
     // Clear any remaining input
     while (_kbhit()) _getch();
-#else
+    #else
     int stdin_fd = STDIN_FILENO;
     int flags = fcntl(stdin_fd, F_GETFL);
     fcntl(stdin_fd, F_SETFL, flags | O_NONBLOCK);
@@ -1461,7 +1549,7 @@ char* spellChant(int timeLimit) {
     int c; while ((c = getchar()) != '\n' && c != EOF);
 
     fcntl(stdin_fd, F_SETFL, flags);
-#endif
+    #endif
     if (input_received) {
         return strdup(input);
     } else {
@@ -2032,6 +2120,10 @@ void init_combat(player* p, enemy* e) {
                 summonLvlUp(p->activeSummon);
             }
         }
+        int money = (int)e->lvl/p->lvl * 150;
+        p->currency += money; // Reward currency based on enemy level
+        type("You gained %d currency!\n", money);
+
         p->stat.status.isPoisoned = false;
         p->stat.status.isParalysed = false;
         p->stat.status.isBurning = false;
@@ -2057,6 +2149,7 @@ void init_combat(player* p, enemy* e) {
     }
     freeEnemy(e);
 }
+
 enemy* createEnemy(player* p, int enemyIndex) {
     if (enemyIndex == randomEnemy) enemyIndex = rand() % 2;
     enemy* newEnemy = malloc(sizeof(enemy));
@@ -2142,6 +2235,7 @@ player* createPlayer() {
     p->xp = 0;
     p->xen = 30;
     p->baseXen = 30;
+    p->currency = 0;
     p->baseStats = (stats){200, 20, 30, 100, 20, (status){false, false, false, false}};
     p->stat = (stats){200, 20, 30, 100, 20, (status){false, false, false, false}};
     p->equipment.helmet = (item){ .itemType=equipment, .data.equipment = { .isEquipped = false } };
@@ -2241,6 +2335,9 @@ scene* processChoice(scene* currentScene, player* p, int choiceIndex) {
                 return NULL;
             }
             return currentScene;
+        case 204:
+            shop(p);
+            return currentScene->nextScenePerChoice[choiceNumber - 1];
         case 301:
             init_combat(p, createEnemy(p, cyclops));
             if (!p->gameTriggers[isAlive]) {
@@ -2372,16 +2469,16 @@ int main() {
     bool conditions1[] = { true, true, true, true };
     scene* nextScenes1[4] = { NULL, NULL, NULL, NULL };
 
-    char* choices2[] = { "Chop door", "Go back to dark room", "Fight the enemy", NULL };
-    bool conditions2[] = { true, true, true };
-    scene* nextScenes2[3] = { NULL, NULL, NULL };
+    char* choices2[] = { "Chop door", "Go back to dark room", "Fight the enemy", "Enter shop", NULL };
+    bool conditions2[] = { true, true, true, true };
+    scene* nextScenes2[4] = { NULL, NULL, NULL, NULL };
 
     char* choices3[] = { "Fight the cyclops", "Go back to previous room", "End Game", NULL };
     bool conditions3[] = { true, true, true };
     scene* nextScenes3[3] = { NULL, NULL, NULL };
 
     scenes[0] = createScene(4, "A dark room with an axe, a chest and a gate.", choices1, conditions1, NULL, nextScenes1, 1);
-    scenes[1] = createScene(3, "A room with a wooden door and an enemy lurking.", choices2, conditions2, NULL, nextScenes2, 2);
+    scenes[1] = createScene(4, "A room with a wooden door and an enemy lurking. There is also a shop", choices2, conditions2, NULL, nextScenes2, 2);
     scenes[2] = createScene(3, "There is an angry Cyclops in the room", choices3, conditions3, NULL, nextScenes3, 3);
     for (int i = 0; i < numScenes; i++) {
         if (!scenes[i]) {
@@ -2403,6 +2500,7 @@ int main() {
     nextScenes2[0] = scenes[2];
     nextScenes2[1] = scenes[0];
     nextScenes2[2] = scenes[1];
+    nextScenes2[3] = scenes[1];
 
     nextScenes3[0] = scenes[2];
     nextScenes3[1] = scenes[1];
