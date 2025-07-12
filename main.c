@@ -1156,7 +1156,7 @@ void manageSummons(player* p) {
         return;
     }
     while (true) {
-        type("Manage Summons:\n1. View Active Summon Set\n2. Add Summons to Active Set\n3. Replace Summon\n4. Exit\n");
+        type("Manage Summons:\n1. View Active Summon Set\n2. Add Summons to Active Set\n3. Replace Summon\n4. View All Summons\n5. Exit\n");
         char input[10];
         if (fgets(input, sizeof(input), stdin) == NULL) {
             type("Error reading input.\n");
@@ -1164,8 +1164,8 @@ void manageSummons(player* p) {
         }
         input[strcspn(input, "\n")] = '\0';
         int choice = atoi(input);
-        if (choice < 1 || choice > 4) {
-            type("Invalid choice. Please enter 1-4.\n");
+        if (choice < 1 || choice > 5) {
+            type("Invalid choice. Please enter 1-5.\n");
             continue;
         }
         switch (choice) {
@@ -1184,18 +1184,17 @@ void manageSummons(player* p) {
                 }
                 break;
             case 2: // Add Summons to Active Set
-                if (p->activeSummonCount > 0) {
-                    type("You already have summons. Use Replace to change them.\n");
+                if (p->activeSummonCount >= 3) {
+                    type("Active summon set is full. Use Replace to change summons.\n");
                     break;
                 }
                 type("Available Summons:\n");
                 for (int i = 0; i < 10; i++) {
-                    type("%d. %s (Type: %s, Level: %d, HP: %d, Atk: %d, Def: %d, Agility: %d)\n",
+                    type("%d. %s (Type: %s, Level: %d, HP: %d)\n",
                          i + 1, allSummons[i].name, allSummons[i].type, allSummons[i].lvl,
-                         allSummons[i].baseStats.hp, allSummons[i].baseStats.atk,
-                         allSummons[i].baseStats.def, allSummons[i].baseStats.agility);
+                         allSummons[i].baseStats.hp);
                 }
-                type("Enter exactly 3 summon numbers (1-10, comma-separated, e.g., 1,2,3):\n");
+                type("Enter up to 3 summon numbers (1-10, comma-separated, e.g., 1,2,3 or 1 or 1,2):\n");
                 char addInput[20];
                 if (fgets(addInput, sizeof(addInput), stdin) == NULL) {
                     type("Error reading input.\n");
@@ -1203,7 +1202,7 @@ void manageSummons(player* p) {
                 }
                 addInput[strcspn(addInput, "\n")] = '\0';
                 if (strcmp(addInput, "0") == 0) break;
-
+                
                 // Parse comma-separated input
                 int selectedSummons[3] = {-1, -1, -1};
                 int selectedCount = 0;
@@ -1219,40 +1218,46 @@ void manageSummons(player* p) {
                                 break;
                             }
                         }
+                        // Check if summon is already in active set
+                        for (int j = 0; j < p->activeSummonCount; j++) {
+                            if (p->activeSummonSet[j] == idx) {
+                                alreadySelected = true;
+                                break;
+                            }
+                        }
                         if (!alreadySelected) {
                             selectedSummons[selectedCount++] = idx;
                         }
                     }
                     token = strtok(NULL, ",");
                 }
-
-                // Validate exactly 3 summons
-                if (selectedCount != 3) {
-                    type("You must select exactly 3 valid summons (1-10).\n");
+                
+                // Validate at least one summon
+                if (selectedCount == 0) {
+                    type("You must select at least one valid summon (1-10).\n");
                     break;
                 }
-
+                
                 // Add selected summons
-                for (int i = 0; i < 3; i++) {
-                    p->activeSummonSet[i] = selectedSummons[i];
+                for (int i = 0; i < selectedCount; i++) {
+                    p->activeSummonSet[p->activeSummonCount] = selectedSummons[i];
                     p->activeSummonCount++;
                     type("%s added to active summon set.\n", allSummons[selectedSummons[i]].name);
                 }
                 break;
             case 3: // Replace Summon
-                if (p->activeSummonCount < 3) {
-                    type("You must have 3 summons to replace. Add summons first.\n");
+                if (p->activeSummonCount == 0) {
+                    type("No summons in active set. Add summons first.\n");
                     break;
                 }
                 type("Active Summon Set:\n");
                 for (int i = 0; i < p->activeSummonCount; i++) {
                     int idx = p->activeSummonSet[i];
-                    type("%d. %s (Type: %s, Level: %d, HP: %d, Atk: %d, Def: %d, Agility: %d)\n",
+                    type("%d. %s (Type: %s, Level: %d, HP: %d)\n",
                          i + 1, allSummons[idx].name, allSummons[idx].type, allSummons[idx].lvl,
-                         allSummons[idx].baseStats.hp, allSummons[idx].baseStats.atk,
-                         allSummons[idx].baseStats.def, allSummons[idx].baseStats.agility);
+                         allSummons[idx].baseStats.hp);
                 }
-                type("Enter the number of the summon to replace (1-3, or 0 to cancel):\n");
+                type("Enter the number of the summon to replace (1-%d, or 0 to cancel):\n", p->activeSummonCount);
                 char replaceInput[10];
                 if (fgets(replaceInput, sizeof(replaceInput), stdin) == NULL) {
                     type("Error reading input.\n");
@@ -1261,16 +1266,15 @@ void manageSummons(player* p) {
                 replaceInput[strcspn(replaceInput, "\n")] = '\0';
                 int replaceIndex = atoi(replaceInput) - 1;
                 if (replaceIndex == -1) break;
-                if (replaceIndex < 0 || replaceIndex >= 3) {
-                    type("Invalid summon number. Please enter 1-3.\n");
+                if (replaceIndex < 0 || replaceIndex >= p->activeSummonCount) {
+                    type("Invalid summon number. Please enter 1-%d.\n", p->activeSummonCount);
                     break;
                 }
                 type("Available Summons:\n");
                 for (int i = 0; i < 10; i++) {
-                    type("%d. %s (Type: %s, Level: %d, HP: %d, Atk: %d, Def: %d, Agility: %d)\n",
+                    type("%d. %s (Type: %s, Level: %d, HP: %d)\n",
                          i + 1, allSummons[i].name, allSummons[i].type, allSummons[i].lvl,
-                         allSummons[i].baseStats.hp, allSummons[i].baseStats.atk,
-                         allSummons[i].baseStats.def, allSummons[i].baseStats.agility);
+                         allSummons[i].baseStats.hp);
                 }
                 type("Enter new summon number (1-10, or 0 to cancel):\n");
                 char newSummonInput[10];
@@ -1301,7 +1305,16 @@ void manageSummons(player* p) {
                      allSummons[p->activeSummonSet[replaceIndex]].name, allSummons[newSummonIndex].name);
                 p->activeSummonSet[replaceIndex] = newSummonIndex;
                 break;
-            case 4: // Exit
+            case 4: // View All Summons
+                type("All Available Summons:\n");
+                for (int i = 0; i < 10; i++) {
+                    type("%d. %s (Type: %s, Level: %d, HP: %d, Atk: %d, Def: %d, Agility: %d)\n",
+                         i + 1, allSummons[i].name, allSummons[i].type, allSummons[i].lvl,
+                         allSummons[i].baseStats.hp, allSummons[i].baseStats.atk,
+                         allSummons[i].baseStats.def, allSummons[i].baseStats.agility);
+                }
+                break;
+            case 5: // Exit
                 return;
         }
     }
@@ -1890,29 +1903,35 @@ void init_combat(player* p, enemy* e) {
                 type("Not enough Xen to summon!\n");
             } else {
                 p->xen -= 30;
-                int summonIndex = p->activeSummonSet[rand() % p->activeSummonCount];
-                if (p->activeSummon) {
-                    free(p->activeSummon->name);
-                    free(p->activeSummon->type);
-                    for (int i = 0; i < 4; i++) {
-                        free(p->activeSummon->moveset[i].name);
-                        free(p->activeSummon->moveset[i].debuff);
+                int summonRoll = rand() % 3; // Roll 0, 1, or 2 for 1/3 chance each
+                if (summonRoll < p->activeSummonCount) {
+                    int summonIndex = p->activeSummonSet[summonRoll];
+                    if (p->activeSummon) {
+                        free(p->activeSummon->name);
+                        free(p->activeSummon->type);
+                        for (int i = 0; i < 4; i++) {
+                            free(p->activeSummon->moveset[i].name);
+                            free(p->activeSummon->moveset[i].debuff);
+                        }
+                        free(p->activeSummon);
                     }
-                    free(p->activeSummon);
-                }
-                p->activeSummon = malloc(sizeof(Summon));
-                if (p->activeSummon) {
-                    *p->activeSummon = allSummons[summonIndex];
-                    p->activeSummon->name = strdup(allSummons[summonIndex].name);
-                    p->activeSummon->type = strdup(allSummons[summonIndex].type);
-                    for (int i = 0; i < 4; i++) {
-                        p->activeSummon->moveset[i].name = strdup(allSummons[summonIndex].moveset[i].name);
-                        p->activeSummon->moveset[i].debuff = strdup(allSummons[summonIndex].moveset[i].debuff);
+                    p->activeSummon = malloc(sizeof(Summon));
+                    if (p->activeSummon) {
+                        *p->activeSummon = allSummons[summonIndex];
+                        p->activeSummon->name = strdup(allSummons[summonIndex].name);
+                        p->activeSummon->type = strdup(allSummons[summonIndex].type);
+                        for (int i = 0; i < 4; i++) {
+                            p->activeSummon->moveset[i].name = strdup(allSummons[summonIndex].moveset[i].name);
+                            p->activeSummon->moveset[i].debuff = strdup(allSummons[summonIndex].moveset[i].debuff);
+                        }
+                        type("Summoned %s!\n", p->activeSummon->name);
+                    } else {
+                        type("Failed to summon due to memory allocation error.\n");
+                        p->xen += 30;
                     }
-                    type("Summoned %s!\n", p->activeSummon->name);
                 } else {
-                    type("Failed to summon due to memory allocation error.\n");
-                    p->xen += 30;
+                    p->xen /= 2;
+                    type("But nothing appeared! You lost half your Xen!\n");
                 }
             }
         }
